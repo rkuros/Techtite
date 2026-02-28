@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Techtite - Screen Mock</title>
+<style>
+:root {
+  --bg-base: #1e1e1e;
+  --bg-sidebar: #252526;
+  --bg-panel: #2d2d2d;
+  --bg-hover: rgba(255,255,255,0.06);
+  --bg-active: rgba(255,255,255,0.10);
+  --text: #dcddde;
+  --text-muted: #999;
+  --text-faint: #666;
+  --text-heading: #e8e8e8;
+  --accent: #7c6af2;
+  --accent-light: #9b8af8;
+  --link: #8b7ef0;
+  --border: #363636;
+  --green: #43b581;
+  --red: #f04747;
+  --yellow: #faa61a;
+  --blue: #1d9bf0;
+  --radius: 6px;
+  --font: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono: "SF Mono",Monaco,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg-base);color:var(--text);height:100vh;overflow:hidden;font-size:14px;line-height:1.5;display:flex;flex-direction:column}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:3px}
+button{font-family:var(--font);cursor:pointer}
+
+/* Layout */
+.app{display:flex;flex:1;overflow:hidden}
+
+/* Ribbon */
+.ribbon{width:44px;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px;flex-shrink:0}
+.rb{width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--radius);cursor:pointer;font-size:16px;color:var(--text-muted);transition:all .15s}
+.rb:hover,.rb.on{background:var(--bg-active);color:var(--text-heading)}
+.rb.on{color:var(--accent)}
+.rb-spacer{flex:1}
+
+/* Left Sidebar */
+.left{width:240px;background:var(--bg-sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.left.hide{display:none}
+.lh{padding:10px 14px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-faint);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.lh-acts{display:flex;gap:6px}
+.lh-acts span{cursor:pointer;opacity:.6;font-size:13px}
+.lh-acts span:hover{opacity:1}
+.left-body{flex:1;overflow-y:auto;padding:6px}
+
+/* File Tree */
+.fd,.fi{padding:4px 8px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);user-select:none}
+.fd:hover,.fi:hover{background:var(--bg-hover)}
+.fi.on{background:var(--bg-active);color:var(--accent)}
+.fc{padding-left:16px}
+.fc.closed{display:none}
+.fd-icon{font-size:10px;width:12px;color:var(--text-faint)}
+
+/* Search Panel */
+.search-panel{display:none;flex-direction:column;height:100%}
+.search-panel.show{display:flex}
+.search-input{width:100%;background:var(--bg-base);border:1px solid var(--border);color:var(--text);padding:8px 10px;border-radius:4px;outline:none;font-size:13px;margin-bottom:8px}
+.search-input:focus{border-color:var(--accent)}
+.sr{padding:6px 8px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--text-muted)}
+.sr:hover{background:var(--bg-hover);color:var(--text)}
+.sr b{color:var(--text);font-weight:500}
+.search-toggle{display:flex;gap:4px;margin-bottom:8px}
+.stb{flex:1;padding:4px;text-align:center;font-size:11px;border:1px solid var(--border);background:transparent;color:var(--text-muted);border-radius:4px;cursor:pointer}
+.stb.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+/* Center */
+.center{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+.center-body{flex:1;display:flex;flex-direction:row;overflow:hidden}
+
+/* Tabs */
+.tabs{height:36px;display:flex;background:var(--bg-sidebar);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0}
+.tab{padding:0 14px;height:36px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text-muted);cursor:pointer;border-right:1px solid var(--border);white-space:nowrap;position:relative;flex-shrink:0}
+.tab:hover{background:var(--bg-hover)}
+.tab.on{color:var(--text-heading);background:var(--bg-base)}
+.tab.on::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent)}
+.tab .x{font-size:12px;opacity:.4;margin-left:4px}
+.tab .x:hover{opacity:1;color:var(--red)}
+.tab .dot{width:6px;height:6px;border-radius:50%;background:var(--yellow);flex-shrink:0}
+
+/* Editor */
+.editor{flex:1;overflow-y:auto;padding:32px 60px}
+.ed-empty{display:flex;height:100%;align-items:center;justify-content:center;color:var(--text-faint);font-size:16px;flex-direction:column;gap:8px}
+.md h1{font-size:24px;color:var(--text-heading);margin:0 0 16px;font-weight:700}
+.md h2{font-size:18px;color:var(--text-heading);margin:24px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.md h3{font-size:15px;color:var(--text-heading);margin:16px 0 6px}
+.md p{margin:0 0 10px}
+.md ul{margin:0 0 10px 20px}
+.md li{margin:2px 0}
+.md code{background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:var(--mono);font-size:12px}
+.md blockquote{border-left:3px solid var(--accent);padding:8px 14px;margin:10px 0;color:var(--text-muted);background:rgba(124,106,242,0.05)}
+.md .link{color:var(--link);cursor:pointer;text-decoration:none;font-weight:500}
+.md .link:hover{text-decoration:underline}
+.md .link.dead{color:var(--text-faint);opacity:.7}
+.md .tag{background:rgba(124,106,242,0.15);color:var(--accent-light);padding:1px 8px;border-radius:10px;font-size:12px;cursor:pointer}
+.md .fm{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius);padding:12px 16px;margin-bottom:20px;font-size:12px;font-family:var(--mono)}
+.md .fm-k{color:var(--accent)}
+.md .fm-v{color:var(--text-muted)}
+.md .cb{background:#111;border:1px solid #000;border-radius:var(--radius);padding:14px;font-family:var(--mono);font-size:12px;line-height:1.6;overflow-x:auto;margin:10px 0}
+.md .ck{color:#c678dd}.md .cs{color:#98c379}.md .cf{color:#61afef}.md .cn{color:#e5c07b}.md .cc{color:#5c6370;font-style:italic}
+.md .warn{background:rgba(255,152,0,0.08);border-left:3px solid var(--yellow);padding:10px 14px;border-radius:0 var(--radius) var(--radius) 0;margin-bottom:16px;font-size:13px;display:flex;gap:10px;align-items:center}
+.md .info{background:rgba(67,181,129,0.08);border-left:3px solid var(--green);padding:10px 14px;border-radius:0 var(--radius) var(--radius) 0;margin-bottom:16px;font-size:13px}
+.md .chk{display:flex;align-items:center;gap:6px;margin:4px 0}
+.md .chk input{accent-color:var(--accent)}
+.md table{border-collapse:collapse;width:100%;margin:10px 0;font-size:13px}
+.md th,.md td{border:1px solid var(--border);padding:6px 10px;text-align:left}
+.md th{background:var(--bg-sidebar);color:var(--text-heading);font-weight:600}
+
+/* Panel pages (Backlinks, Tags, Graph) */
+.panel-page{max-width:700px;margin:0 auto}
+.panel-page h2{margin-top:0}
+.pp-item{padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:8px;cursor:pointer;font-size:13px;color:var(--text-muted);transition:background .1s}
+.pp-item:hover{background:var(--bg-hover);color:var(--text)}
+.pp-item b{color:var(--link);font-weight:500;display:block;margin-bottom:2px}
+.pp-ctx{font-size:11px;opacity:.8}
+.tag-grid{display:flex;flex-wrap:wrap;gap:6px}
+.tag-chip{background:rgba(124,106,242,0.12);color:var(--accent-light);padding:5px 14px;border-radius:16px;font-size:13px;cursor:pointer;border:1px solid transparent;transition:all .1s}
+.tag-chip:hover{border-color:var(--accent);background:rgba(124,106,242,0.2)}
+.tag-count{font-size:11px;opacity:.6;margin-left:4px}
+.graph-canvas-wrap{width:100%;aspect-ratio:16/10;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:#111}
+
+/* Agent Cards */
+.ac{background:var(--bg-sidebar);border:1px solid var(--border);border-radius:var(--radius);padding:10px;margin-bottom:8px}
+.ac-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.ac-name{font-size:12px;font-weight:600;color:var(--text-heading);display:flex;align-items:center;gap:6px}
+.ac-dot{width:7px;height:7px;border-radius:50%}
+.ac-dot.run{background:var(--green);box-shadow:0 0 4px rgba(67,181,129,.5)}
+.ac-dot.idle{background:var(--yellow)}
+.ac-dot.ambient{background:var(--green);opacity:.7}
+.ac-task{font-size:11px;color:var(--text-muted);margin-bottom:8px}
+.ac-btns{display:flex;gap:6px}
+.ac-btn{background:transparent;border:1px solid var(--border);color:var(--text);padding:3px 8px;border-radius:4px;font-size:10px;display:flex;align-items:center;gap:4px}
+.ac-btn:hover{background:var(--bg-active)}
+.ac-btn.danger{color:var(--red);border-color:rgba(240,71,71,.3)}
+
+/* Backlinks */
+.bl{padding:6px 8px;border-radius:4px;cursor:pointer;font-size:12px;margin-bottom:2px;color:var(--text-muted)}
+.bl:hover{background:var(--bg-hover);color:var(--text)}
+.bl b{color:var(--link);font-weight:500}
+
+/* Graph Placeholder */
+.graph-ph{border:1px dashed var(--border);border-radius:var(--radius);min-height:120px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:var(--text-faint);font-size:12px;text-align:center;padding:16px}
+
+/* Right Terminal Panel */
+.term-right{width:0;background:rgba(10,10,10,.97);border-left:2px solid var(--accent);display:flex;flex-direction:column;transition:width .2s ease;overflow:hidden;flex-shrink:0}
+.term-right.open{width:420px}
+.bt-tabs{display:flex;background:rgba(255,255,255,.03);border-bottom:1px solid var(--border);flex-shrink:0}
+.bt-tab{padding:6px 14px;font-size:11px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+.bt-tab:hover{color:var(--text)}
+.bt-tab.on{color:var(--text-heading);border-bottom-color:var(--accent)}
+.bt-close{margin-left:auto;padding:6px 14px;font-size:11px;color:var(--text-faint);cursor:pointer}
+.bt-close:hover{color:var(--text)}
+.bt-body{flex:1;overflow-y:auto;padding:10px 16px;font-family:var(--mono);font-size:12px;line-height:1.6;color:#ccc}
+.bt-body .hide{display:none}
+.tp{color:var(--accent);font-weight:bold}
+.tc{color:#fff}
+.to{opacity:.8;margin:2px 0 10px}
+.ts{color:#4ec9b0}
+
+/* Git diff */
+.diff-add{color:var(--green);background:rgba(67,181,129,.08)}
+.diff-del{color:var(--red);background:rgba(240,71,71,.08)}
+.diff-hdr{color:var(--blue);margin:8px 0 4px}
+.diff-file{font-weight:600;color:var(--text-heading);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.diff-file .badge{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:400}
+.badge-m{background:rgba(250,166,26,.15);color:var(--yellow)}
+.badge-a{background:rgba(67,181,129,.15);color:var(--green)}
+
+/* Status Bar */
+.status{height:24px;background:var(--bg-sidebar);border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:11px;color:var(--text-muted);flex-shrink:0}
+.si{display:flex;align-items:center;gap:5px;cursor:pointer;padding:0 4px}
+.si:hover{color:var(--text-heading)}
+.sl,.sr-s{display:flex;gap:12px;align-items:center}
+
+/* Modal */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;display:none;align-items:flex-start;justify-content:center;padding-top:14vh}
+.modal-bg.show{display:flex}
+.modal{background:var(--bg-panel);width:560px;border-radius:var(--radius);border:1px solid var(--border);box-shadow:0 16px 40px rgba(0,0,0,.5);overflow:hidden}
+.modal-in{padding:12px 14px;border-bottom:1px solid var(--border)}
+.modal-in input{width:100%;background:transparent;border:none;color:var(--text-heading);font-size:16px;outline:none;font-family:var(--font)}
+.modal-in input::placeholder{color:var(--text-faint)}
+.modal-list{max-height:320px;overflow-y:auto;padding:6px}
+.ml-item{padding:7px 12px;border-radius:4px;display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text)}
+.ml-item:hover,.ml-item.sel{background:var(--accent);color:#fff}
+.ml-sub{font-size:10px;opacity:.6}
+
+/* Publish Modal */
+.pub-modal{display:none}
+.pub-modal.show{display:block}
+.pub-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:200;display:flex;align-items:center;justify-content:center}
+.pub-box{background:var(--bg-panel);width:500px;border-radius:var(--radius);border:1px solid var(--border);padding:24px;box-shadow:0 16px 40px rgba(0,0,0,.5)}
+.pub-box h3{color:var(--text-heading);margin-bottom:16px}
+.pub-box p{font-size:13px;color:var(--text-muted);margin-bottom:14px}
+.pub-box textarea{width:100%;height:80px;background:var(--bg-base);border:1px solid var(--border);color:var(--text);padding:10px;border-radius:4px;font-family:var(--font);font-size:13px;resize:vertical;outline:none;margin-bottom:12px}
+.pub-box textarea:focus{border-color:var(--accent)}
+.pub-btns{display:flex;gap:8px;justify-content:flex-end}
+.btn{padding:6px 16px;border-radius:4px;font-size:12px;border:none;cursor:pointer}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-light)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{background:var(--bg-active)}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-blue:hover{opacity:.9}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{opacity:.9}
+
+/* Commit modal */
+.commit-area{margin-top:8px}
+.commit-area input{width:100%;background:var(--bg-base);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:4px;font-size:12px;outline:none;margin-bottom:8px}
+.commit-area input:focus{border-color:var(--accent)}
+
+/* Conflict modal */
+.conflict-opt{display:flex;gap:8px;margin:10px 0}
+.conflict-opt button{flex:1;padding:8px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Ribbon (Epic 1) -->
+  <div class="ribbon">
+    <div class="rb on" data-panel="files" onclick="switchPanel('files')" title="Files (Epic 3)">&#128193;</div>
+    <div class="rb" data-panel="search" onclick="switchPanel('search')" title="Search (Epic 4)">&#128269;</div>
+    <div class="rb" data-panel="git" onclick="switchPanel('git')" title="Git (Epic 5)">&#9741;</div>
+    <div class="rb" data-panel="agents" onclick="switchPanel('agents')" title="Agents (Epic 6)">&#129302;</div>
+    <div class="rb" data-panel="logs" onclick="switchPanel('logs')" title="Logs (Epic 7)">&#128203;</div>
+    <div class="rb" data-panel="publish" onclick="switchPanel('publish')" title="Publish (Epic 8,9)">&#128640;</div>
+    <div style="width:28px;border-top:1px solid var(--border);margin:6px 0"></div>
+    <div class="rb" onclick="openFile('_graph')" title="Graph View (US-4.8)">&#128376;</div>
+    <div class="rb" onclick="openFile('_backlinks')" title="Backlinks (US-4.4)">&#128279;</div>
+    <div class="rb" onclick="openFile('_tags')" title="Tags (US-4.6)">&#127991;</div>
+    <div class="rb-spacer"></div>
+    <div class="rb" title="Settings">&#9881;</div>
+  </div>
+
+  <!-- Left Sidebar -->
+  <div class="left" id="leftSidebar">
+    <!-- File Panel (Epic 3: US-3.1, US-3.2) -->
+    <div id="panel-files" class="left-panel">
+      <div class="lh">
+        <span>Files</span>
+        <div class="lh-acts">
+          <span title="New file" onclick="alert('New file dialog (US-3.2)')">+&#128196;</span>
+          <span title="New folder" onclick="alert('New folder dialog (US-3.2)')">+&#128193;</span>
+        </div>
+      </div>
+      <div class="left-body" id="fileTree"></div>
+    </div>
+
+    <!-- Search Panel (Epic 4: US-4.7, US-4.13) -->
+    <div id="panel-search" class="left-panel" style="display:none;height:100%">
+      <div class="lh"><span>Search</span></div>
+      <div class="left-body" style="display:flex;flex-direction:column">
+        <input class="search-input" id="searchInput" placeholder="Search vault..." oninput="doSearch()">
+        <div class="search-toggle">
+          <div class="stb on" id="stbKeyword" onclick="setSearchMode('keyword')">Keyword (US-4.7)</div>
+          <div class="stb" id="stbSemantic" onclick="setSearchMode('semantic')">Semantic (US-4.13)</div>
+        </div>
+        <div id="searchResults" style="flex:1;overflow-y:auto"></div>
+      </div>
+    </div>
+
+    <!-- Git Panel (Epic 5: US-5.2, US-5.3, US-5.4) -->
+    <div id="panel-git" class="left-panel" style="display:none;height:100%">
+      <div class="lh"><span>Source Control</span></div>
+      <div class="left-body" id="gitPanel">
+        <div style="margin-bottom:10px">
+          <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">CHANGES (2)</div>
+          <div class="fi" onclick="openFile('diff-main')"><span style="color:var(--yellow)">M</span> src/main.ts</div>
+          <div class="fi" onclick="openFile('diff-main')"><span style="color:var(--green)">A</span> src/ipc.ts</div>
+        </div>
+        <div class="commit-area">
+          <input id="commitMsg" placeholder="Commit message (US-5.3)">
+          <button class="btn btn-primary" style="width:100%" onclick="doCommit()">Commit (US-5.3)</button>
+        </div>
+        <div style="margin-top:12px">
+          <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">HISTORY (US-5.4)</div>
+          <div class="sr"><b>4f8a2b1</b> feat: implement IPC file io <span style="font-size:10px;opacity:.5">2min ago</span></div>
+          <div class="sr"><b>3e7c1d0</b> init: project scaffold <span style="font-size:10px;opacity:.5">1hr ago</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents Panel (Epic 6: US-6.4, US-6.6) -->
+    <div id="panel-agents" class="left-panel" style="display:none;height:100%">
+      <div class="lh"><span>Agents Dashboard</span></div>
+      <div class="left-body">
+        <div class="ac">
+          <div class="ac-top">
+            <div class="ac-name"><div class="ac-dot run"></div>Claude Code #1</div>
+          </div>
+          <div class="ac-task">Implementing IPC File I/O (US-1.5)</div>
+          <div style="font-size:10px;color:var(--text-faint);margin-bottom:6px">Tokens: 45.2K / Cost: $0.18</div>
+          <div class="ac-btns">
+            <button class="ac-btn" onclick="openTerm('term1')">&#9002; Terminal</button>
+            <button class="ac-btn" onclick="openFile('agent-log')">Log</button>
+            <button class="ac-btn danger">Stop</button>
+          </div>
+        </div>
+        <div class="ac">
+          <div class="ac-top">
+            <div class="ac-name"><div class="ac-dot ambient"></div>Ambient Manager</div>
+          </div>
+          <div class="ac-task">Monitoring all agents. Session log up to date. (US-6.11)</div>
+          <div style="font-size:10px;color:var(--text-faint);margin-bottom:6px">Resident Process</div>
+        </div>
+        <div style="margin-top:10px">
+          <button class="btn btn-primary" style="width:100%" onclick="alert('Launch new agent dialog (US-6.6)')">+ Launch Agent (US-6.6)</button>
+        </div>
+        <div style="margin-top:14px;font-size:11px;color:var(--text-faint)">
+          <div>API Cost Today: <span style="color:var(--text)">$0.38</span> / $5.00 limit</div>
+          <div style="margin-top:4px;background:var(--border);border-radius:2px;height:4px">
+            <div style="width:7.6%;background:var(--accent);height:100%;border-radius:2px"></div>
+          </div>
+          <div style="margin-top:2px;font-size:10px">(US-6.13) Token budget</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs Panel (Epic 7: US-7.3) -->
+    <div id="panel-logs" class="left-panel" style="display:none;height:100%">
+      <div class="lh"><span>Session Logs</span></div>
+      <div class="left-body">
+        <div style="font-size:11px;color:var(--text-faint);margin-bottom:6px">TODAY</div>
+        <div class="fi on" onclick="openFile('daily-log')">&#128203; 2026-02-28 Daily Summary</div>
+        <div class="fi" onclick="openFile('agent-log')">&#129302; Claude Code #1 Session</div>
+        <div style="font-size:11px;color:var(--text-faint);margin:10px 0 6px">YESTERDAY</div>
+        <div class="fi">&#128203; 2026-02-27 Daily Summary</div>
+      </div>
+    </div>
+
+    <!-- Publish Panel (Epic 8, 9) -->
+    <div id="panel-publish" class="left-panel" style="display:none;height:100%">
+      <div class="lh"><span>Publish</span></div>
+      <div class="left-body">
+        <div style="font-size:11px;color:var(--text-faint);margin-bottom:8px">BLOG (Epic 8)</div>
+        <button class="btn btn-primary" style="width:100%;margin-bottom:6px" onclick="showPublish('blog')">Draft Blog from Logs (US-8.1)</button>
+        <div class="fi">&#128221; [Draft] IPC Implementation (US-8.2)</div>
+        <div style="font-size:11px;color:var(--text-faint);margin:12px 0 8px">SNS (Epic 9)</div>
+        <button class="btn btn-blue" style="width:100%;margin-bottom:6px" onclick="showPublish('x')">Draft X Post (US-9.1)</button>
+        <button class="btn btn-ghost" style="width:100%" onclick="showPublish('threads')">Draft Threads Post (US-9.3)</button>
+        <div style="margin-top:12px;font-size:11px;color:var(--text-faint)">
+          <div style="margin-bottom:4px">Recent Posts:</div>
+          <div class="sr">&#10003; Zenn: "Tauri IPC Design" (2/27)</div>
+          <div class="sr">&#10003; X: "Built IPC layer today..." (2/27)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center -->
+  <div class="center">
+    <div class="tabs" id="tabBar"></div>
+    <div class="center-body">
+      <div class="editor" id="editorArea"></div>
+
+      <!-- Right Terminal Panel -->
+      <div class="term-right open" id="termPanel">
+        <div class="bt-tabs">
+          <div class="bt-tab on" data-bt="term1" onclick="switchBt('term1')">Claude #1</div>
+          <div class="bt-tab" data-bt="term2" onclick="switchBt('term2')">Shell</div>
+          <div class="bt-tab" data-bt="gitdiff" onclick="switchBt('gitdiff')">Git Diff</div>
+          <div class="bt-close" onclick="closeTerm()">&#10005;</div>
+        </div>
+        <div class="bt-body">
+          <div id="bt-term1">
+<div><span class="tp">claude@techtite:~/src$</span> <span class="tc">Reading user_stories.md...</span></div>
+<div class="to"><span class="ts">&#10004; Parsed 9 epics, 78 user stories.</span></div>
+<div><span class="tp">claude@techtite:~/src$</span> <span class="tc">edit main.ts --implement US-1.5</span></div>
+<div class="to"><span class="ts">&#10004; Applied 14 insertions to main.ts</span><br>Created FileManager class with IPC read/write.</div>
+<div><span class="tp">claude@techtite:~/src$</span> <span class="tc">git commit -m "feat: implement IPC file io"</span></div>
+<div class="to">[main 4f8a2b1] feat: implement IPC file io<br>1 file changed, 14 insertions(+)</div>
+<div><span class="tp">claude@techtite:~/src$</span> <span class="tc" style="opacity:.5">&#9646;</span></div>
+          </div>
+          <div id="bt-term2" class="hide">
+<div><span class="tp">user@mac:~/techtite$</span> <span class="tc">npm run dev</span></div>
+<div class="to"><span class="ts">&#10004; Tauri dev server running on localhost:1420</span></div>
+          </div>
+          <div id="bt-gitdiff" class="hide">
+<div class="diff-file">src/main.ts <span class="badge badge-m">Modified</span></div>
+<div class="diff-hdr">@@ -1,3 +1,17 @@</div>
+<div> import { invoke } from '@tauri-apps/api/core';</div>
+<div class="diff-add">+ export class FileManager {</div>
+<div class="diff-add">+   async readFile(path: string): Promise&lt;string&gt; {</div>
+<div class="diff-add">+     return await invoke('read_file', { path });</div>
+<div class="diff-add">+   }</div>
+<div class="diff-add">+   async writeFile(path: string, content: string): Promise&lt;void&gt; {</div>
+<div class="diff-add">+     await invoke('write_file', { path, content });</div>
+<div class="diff-add">+   }</div>
+<div class="diff-add">+ }</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Status Bar (Epic 1, Epic 5: US-5.1, US-5.10) -->
+<div class="status">
+  <div class="sl">
+    <div class="si" onclick="toggleModal()" title="Quick Switcher (US-3.3)">&#128269; Cmd+P</div>
+    <div class="si" title="Branch (US-5.1)">&#127807; main</div>
+    <div class="si" id="syncStatus" title="Sync Status (US-5.10)" onclick="alert('Sync details: Last push 2min ago. Auto-sync every 5min. (US-5.9)')">&#9989; Synced</div>
+    <div class="si" title="Agents running">&#129302; 2 agents</div>
+  </div>
+  <div class="sr-s">
+    <div class="si" title="RAG (US-4.12)">&#129504; RAG On</div>
+    <div class="si" title="API Cost (US-6.13)">&#128176; $0.38 / $5.00</div>
+    <div class="si" title="Ln/Col">Ln 42, Col 8</div>
+  </div>
+</div>
+
+<!-- Quick Switcher Modal (Epic 3: US-3.3) -->
+<div class="modal-bg" id="qsModal">
+  <div class="modal">
+    <div class="modal-in"><input id="qsInput" placeholder="Quick Switcher: type filename... (US-3.3)" oninput="filterQS()"></div>
+    <div class="modal-list" id="qsList"></div>
+  </div>
+</div>
+
+<!-- Publish Modal (Epic 8, 9) -->
+<div class="pub-modal" id="pubModal">
+  <div class="pub-overlay" onclick="closePub()">
+    <div class="pub-box" onclick="event.stopPropagation()">
+      <h3 id="pubTitle"></h3>
+      <p id="pubDesc"></p>
+      <textarea id="pubContent"></textarea>
+      <div class="pub-btns">
+        <button class="btn btn-ghost" onclick="closePub()">Cancel</button>
+        <button class="btn btn-primary" id="pubAction" onclick="doPub()">Publish</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Conflict Modal (Epic 5: US-5.11) -->
+<div class="pub-modal" id="conflictModal">
+  <div class="pub-overlay" onclick="closeConflict()">
+    <div class="pub-box" onclick="event.stopPropagation()">
+      <h3>&#9888; Sync Conflict Detected (US-5.11)</h3>
+      <p>File <code>docs/architecture.md</code> was modified both locally and remotely.</p>
+      <div class="conflict-opt">
+        <button class="btn btn-primary" onclick="closeConflict()">Keep Local</button>
+        <button class="btn btn-ghost" onclick="closeConflict()">Keep Remote</button>
+        <button class="btn btn-blue" onclick="closeConflict()">&#129302; Ask AI (US-5.12)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// === Data ===
+const FS = [
+  {id:'f-docs',name:'aidlc-docs',type:'folder',open:true,children:[
+    {id:'f-inc',name:'inception',type:'folder',open:true,children:[
+      {id:'plan',name:'user_stories_plan.md',type:'file'},
+      {id:'stories',name:'user_stories.md',type:'file'},
+    ]},
+  ]},
+  {id:'f-src',name:'src',type:'folder',open:true,children:[
+    {id:'main-ts',name:'main.ts',type:'file'},
+    {id:'app-tsx',name:'app.tsx',type:'file'},
+    {id:'ipc-ts',name:'ipc.ts',type:'file'},
+  ]},
+  {id:'f-sess',name:'.sessions',type:'folder',open:false,children:[
+    {id:'daily-log',name:'2026-02-28-daily.md',type:'file'},
+    {id:'agent-log',name:'2026-02-28-claude1.md',type:'file'},
+  ]},
+];
+
+function allFiles(nodes,path=''){
+  let r=[];
+  for(const n of nodes){
+    const p=path?path+'/'+n.name:n.name;
+    if(n.type==='file') r.push({id:n.id,name:n.name,path:p});
+    if(n.children) r=r.concat(allFiles(n.children,p));
+  }
+  return r;
+}
+const flatFiles=allFiles(FS);
+
+const PAGES={
+  'plan':{title:'user_stories_plan.md',html:`
+<div class="md">
+  <div class="fm"><span class="fm-k">status:</span> <span class="fm-v">completed</span><br><span class="fm-k">tags:</span> <span class="fm-v">[planning, inception]</span><br><span class="fm-k">date:</span> <span class="fm-v">2026-02-28</span></div>
+  <h1>Techtite ユーザーストーリー作成計画</h1>
+  <h2>概要</h2>
+  <p>AIエージェント向けエディタ + ナレッジベース（Obsidianライク）のユーザーストーリー策定。</p>
+  <p>詳細: <a class="link" onclick="openFile('stories')">[[user_stories.md]]</a></p>
+  <h2>作業ステップ</h2>
+  <div class="chk"><input type="checkbox" checked disabled> スコープと前提条件の確認</div>
+  <div class="chk"><input type="checkbox" checked disabled> アクター（ペルソナ）の特定</div>
+  <div class="chk"><input type="checkbox" checked disabled> ユーザーストーリーの作成 → <a class="link" onclick="openFile('stories')">[[user_stories.md]]</a></div>
+  <div class="chk"><input type="checkbox" disabled> 受け入れ基準のレビュー</div>
+</div>`},
+
+  'stories':{title:'user_stories.md',html:`
+<div class="md">
+  <div class="fm"><span class="fm-k">tags:</span> <span class="tag">#requirements</span> <span class="tag">#mvp</span></div>
+  <h1>Techtite ユーザーストーリー</h1>
+  <h2>0. 優先順位サマリー（MoSCoW）</h2>
+  <table>
+    <tr><th>優先度</th><th>件数</th><th>主な内容</th></tr>
+    <tr><td><b>Must</b></td><td>32</td><td>アプリ基盤, エディタ, ファイル管理, Git, エージェント管理</td></tr>
+    <tr><td><b>Should</b></td><td>35</td><td>RAG, Graph View, ブログ/SNS公開, ガードレール</td></tr>
+    <tr><td><b>Could</b></td><td>10</td><td>LaTeX, 外部DB連携, Note/Threads</td></tr>
+    <tr><td><b>Won't</b></td><td>1</td><td>検索フィードバック自動学習</td></tr>
+  </table>
+  <h2>Epic 1: デスクトップアプリケーション基盤</h2>
+  <p><b>US-1.1 [Must]</b> アプリ起動してVaultフォルダを開きたい。</p>
+  <p><b>US-1.2 [Must]</b> タブで複数ファイルを開きたい。</p>
+  <p><b>US-1.5 [Must]</b> IPC経由でファイルI/O → <a class="link" onclick="openFile('main-ts')">[[main.ts]]</a></p>
+  <h2>Epic 2: マークダウンエディタ</h2>
+  <p><b>US-2.1 [Must]</b> Live Previewモードで編集。非破壊的レンダリング。</p>
+  <p><b>US-2.6 [Must]</b> コードファイルの閲覧 → <a class="link" onclick="openFile('main-ts')">[[main.ts]]</a></p>
+  <h2>Epic 4: ナレッジベース</h2>
+  <p><b>US-4.1 [Must]</b> <code>[[ファイル名]]</code> で内部リンク作成。</p>
+  <p><b>US-4.7 [Must]</b> 全文検索。</p>
+  <p><b>US-4.8 [Should]</b> Graph View でリンク構造可視化。→ <a class="link" onclick="openFile('_graph')">Graph View を開く</a></p>
+  <h2>Epic 5: Git統合・透過的同期</h2>
+  <p><b>US-5.9 [Must]</b> バックグラウンド自動sync（push/pull）。</p>
+  <p><b>US-5.11 [Must]</b> <a class="link" onclick="showConflict()" style="color:var(--yellow)">競合検知デモ →</a></p>
+  <h2>Epic 6: AIエージェント管理</h2>
+  <p><b>US-6.4 [Must]</b> ダッシュボード → 左サイドバー Agents参照</p>
+  <p><b>US-6.10 [Must]</b> システムレベル操作キャプチャ（エージェント非依存）。</p>
+  <p><b>US-6.11 [Must]</b> アンビエントエージェント（マネージャー）による監視。</p>
+</div>`},
+
+  'main-ts':{title:'main.ts',html:`
+<div class="md">
+  <div class="warn"><span>&#128274;</span><div><b>Read Only Mode</b> (US-2.6)<br><span style="opacity:.8">AI Agent "Claude Code #1" is editing this file. Read-only to prevent conflicts. (US-6.7)</span></div></div>
+  <h1>main.ts</h1>
+  <div class="cb">
+<span class="ck">import</span> { invoke } <span class="ck">from</span> <span class="cs">'@tauri-apps/api/core'</span>;
+<span class="ck">import</span> { listen } <span class="ck">from</span> <span class="cs">'@tauri-apps/api/event'</span>;
+
+<span class="cc">// US-1.5: IPC File I/O</span>
+<span class="ck">export class</span> <span class="cn">FileManager</span> {
+  <span class="ck">async</span> <span class="cf">readFile</span>(path: <span class="cn">string</span>): <span class="cn">Promise&lt;string&gt;</span> {
+    <span class="ck">return await</span> <span class="cf">invoke</span>(<span class="cs">'read_file'</span>, { path });
+  }
+
+  <span class="ck">async</span> <span class="cf">writeFile</span>(path: <span class="cn">string</span>, content: <span class="cn">string</span>): <span class="cn">Promise&lt;void&gt;</span> {
+    <span class="ck">await</span> <span class="cf">invoke</span>(<span class="cs">'write_file'</span>, { path, content });
+  }
+
+  <span class="cc">// US-6.7: Watch for external file changes</span>
+  <span class="ck">async</span> <span class="cf">watchChanges</span>(cb: (e: <span class="cn">FileEvent</span>) =&gt; <span class="cn">void</span>) {
+    <span class="ck">await</span> <span class="cf">listen</span>(<span class="cs">'file-changed'</span>, cb);
+  }
+}
+  </div>
+  <div class="info"><b>Last modified by:</b> Claude Code #1 &mdash; 2 min ago<br>Commit: <code>4f8a2b1</code> feat: implement IPC file io</div>
+</div>`},
+
+  'app-tsx':{title:'app.tsx',html:`
+<div class="md">
+  <h1>app.tsx</h1>
+  <div class="cb">
+<span class="ck">import</span> React <span class="ck">from</span> <span class="cs">'react'</span>;
+<span class="ck">import</span> { FileExplorer } <span class="ck">from</span> <span class="cs">'./components/FileExplorer'</span>;
+<span class="ck">import</span> { Editor } <span class="ck">from</span> <span class="cs">'./components/Editor'</span>;
+<span class="ck">import</span> { TabBar } <span class="ck">from</span> <span class="cs">'./components/TabBar'</span>;
+
+<span class="ck">export function</span> <span class="cf">App</span>() {
+  <span class="ck">return</span> (
+    &lt;<span class="cn">div</span> className=<span class="cs">"app-shell"</span>&gt;
+      &lt;<span class="cn">FileExplorer</span> /&gt;
+      &lt;<span class="cn">div</span> className=<span class="cs">"workspace"</span>&gt;
+        &lt;<span class="cn">TabBar</span> /&gt;
+        &lt;<span class="cn">Editor</span> /&gt;
+      &lt;/<span class="cn">div</span>&gt;
+    &lt;/<span class="cn">div</span>&gt;
+  );
+}
+  </div>
+</div>`},
+
+  'ipc-ts':{title:'ipc.ts',html:`
+<div class="md">
+  <div class="warn"><span>&#127381;</span><div><b>New File</b><br>Created by Claude Code #1 just now.</div></div>
+  <h1>ipc.ts</h1>
+  <div class="cb">
+<span class="cc">// IPC command definitions for Tauri backend</span>
+<span class="ck">export interface</span> <span class="cn">IpcCommands</span> {
+  <span class="cf">read_file</span>: { path: <span class="cn">string</span> } =&gt; <span class="cn">string</span>;
+  <span class="cf">write_file</span>: { path: <span class="cn">string</span>; content: <span class="cn">string</span> } =&gt; <span class="cn">void</span>;
+  <span class="cf">list_dir</span>: { path: <span class="cn">string</span> } =&gt; <span class="cn">FileEntry[]</span>;
+  <span class="cf">watch_vault</span>: {} =&gt; <span class="cn">void</span>;
+}
+  </div>
+</div>`},
+
+  'daily-log':{title:'2026-02-28-daily.md',html:`
+<div class="md">
+  <div class="fm"><span class="fm-k">type:</span> <span class="fm-v">daily-log</span><br><span class="fm-k">date:</span> <span class="fm-v">2026-02-28</span><br><span class="fm-k">generated-by:</span> <span class="fm-v">ambient-manager</span></div>
+  <h1>Daily Session Log: 2026-02-28</h1>
+  <p><em>Auto-generated by Ambient Manager (US-7.2)</em></p>
+  <h2>Agent: Claude Code #1</h2>
+  <ul>
+    <li><b>Task:</b> Implement IPC File I/O (US-1.5)</li>
+    <li><b>Files Modified:</b> <a class="link" onclick="openFile('main-ts')">[[main.ts]]</a>, <a class="link" onclick="openFile('ipc-ts')">[[ipc.ts]]</a></li>
+    <li><b>Commit:</b> <code>4f8a2b1</code> feat: implement IPC file io</li>
+    <li><b>Duration:</b> 12 minutes</li>
+  </ul>
+  <h2>System Operations Log (US-6.10)</h2>
+  <blockquote>14:32:01 - File created: src/ipc.ts<br>14:33:15 - File modified: src/main.ts (+14 lines)<br>14:33:45 - Git commit: 4f8a2b1<br>14:34:02 - Git push: origin/main (auto-sync US-5.9)</blockquote>
+  <h2>Publishing Actions</h2>
+  <div style="display:flex;gap:8px;margin:12px 0">
+    <button class="btn btn-green" onclick="showPublish('blog')">&#128221; Draft Zenn Article (US-8.1)</button>
+    <button class="btn btn-blue" onclick="showPublish('x')">&#120143; Draft X Post (US-9.1)</button>
+  </div>
+</div>`},
+
+  'agent-log':{title:'2026-02-28-claude1.md',html:`
+<div class="md">
+  <div class="fm"><span class="fm-k">type:</span> <span class="fm-v">session-log</span><br><span class="fm-k">agent:</span> <span class="fm-v">claude-code-1</span><br><span class="fm-k">session-start:</span> <span class="fm-v">2026-02-28T14:30:00</span></div>
+  <h1>Session Log: Claude Code #1</h1>
+  <p><em>Session started at 14:30 (US-7.1)</em></p>
+  <h2>Task: Implement IPC File I/O</h2>
+  <p>Referenced <a class="link" onclick="openFile('stories')">[[user_stories.md]]</a> for requirements.</p>
+  <h3>Actions</h3>
+  <ul>
+    <li>14:30 - Read user_stories.md, identified US-1.5 requirements</li>
+    <li>14:31 - Created <a class="link" onclick="openFile('ipc-ts')">[[ipc.ts]]</a> with IPC type definitions</li>
+    <li>14:33 - Modified <a class="link" onclick="openFile('main-ts')">[[main.ts]]</a> with FileManager class</li>
+    <li>14:33 - Committed changes: <code>4f8a2b1</code></li>
+  </ul>
+  <h3>Decisions</h3>
+  <p>Used <code>invoke()</code> pattern from Tauri v2 API. Chose Promise-based async over callback pattern for cleaner error handling.</p>
+  <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:var(--radius);font-size:12px;color:var(--text-faint)">
+    <b>Ambient Manager Note (US-6.12):</b> Log quality verified. Coverage: 100% of file operations captured.
+  </div>
+</div>`},
+
+  'diff-main':{title:'Git Diff: main.ts',html:`
+<div class="md">
+  <h1>Changes: src/main.ts</h1>
+  <div style="font-family:var(--mono);font-size:12px;line-height:1.7;background:#111;padding:14px;border-radius:var(--radius);border:1px solid #000">
+<div style="color:var(--blue)">@@ -1,3 +1,17 @@</div>
+<div> import { invoke } from '@tauri-apps/api/core';</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+ import { listen } from '@tauri-apps/api/event';</div>
+<div> </div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+ // US-1.5: IPC File I/O</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+ export class FileManager {</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+   async readFile(path: string): Promise&lt;string&gt; {</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+     return await invoke('read_file', { path });</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+   }</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+ </div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+   async writeFile(path: string, content: string): Promise&lt;void&gt; {</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+     await invoke('write_file', { path, content });</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+   }</div>
+<div style="color:var(--green);background:rgba(67,181,129,.08)">+ }</div>
+  </div>
+  <div style="margin-top:12px;display:flex;gap:8px">
+    <button class="btn btn-primary" onclick="alert('Staged! (US-5.3)')">Stage Changes</button>
+    <button class="btn btn-ghost" onclick="alert('Reverted (US-5.2)')">Discard</button>
+  </div>
+</div>`},
+};
+
+// Backlinks map
+const BACKLINKS={
+  'stories':[
+    {id:'plan',name:'user_stories_plan.md',ctx:'...の作成（[[user_stories]]に分離）'},
+    {id:'daily-log',name:'2026-02-28-daily.md',ctx:'...Ref: [[user_stories]] Epic 1'},
+    {id:'agent-log',name:'2026-02-28-claude1.md',ctx:'...Referenced [[user_stories]] for requirements'},
+  ],
+  'main-ts':[
+    {id:'stories',name:'user_stories.md',ctx:'...IPC実装 → [[main.ts]]'},
+    {id:'daily-log',name:'2026-02-28-daily.md',ctx:'...Modified: [[main.ts]]'},
+    {id:'agent-log',name:'2026-02-28-claude1.md',ctx:'...Modified [[main.ts]] with FileManager'},
+  ],
+  'plan':[
+    {id:'stories',name:'user_stories.md',ctx:'...詳細: [[user_stories_plan]]'},
+  ],
+  'ipc-ts':[
+    {id:'daily-log',name:'2026-02-28-daily.md',ctx:'...Created: [[ipc.ts]]'},
+  ],
+};
+
+// All tags in vault
+const ALL_TAGS=[
+  {name:'#requirements',count:2,files:['stories','plan']},
+  {name:'#mvp',count:1,files:['stories']},
+  {name:'#planning',count:1,files:['plan']},
+  {name:'#epic1',count:3,files:['stories','main-ts','ipc-ts']},
+  {name:'#epic2',count:1,files:['stories']},
+  {name:'#session-log',count:2,files:['daily-log','agent-log']},
+];
+
+// Dynamic page builders for Backlinks / Tags / Graph
+function buildBacklinksPage(){
+  // Find which file tabs are open (use the last real file as context)
+  const realFiles=openTabs.filter(t=>!t.startsWith('_'));
+  const ctx=realFiles.length?realFiles[realFiles.length-1]:'stories';
+  const ctxName=PAGES[ctx]?PAGES[ctx].title:'(none)';
+  const bls=BACKLINKS[ctx]||[];
+  let items='';
+  if(bls.length===0){
+    items='<p style="color:var(--text-faint)">No backlinks found for this file.</p>';
+  } else {
+    for(const b of bls){
+      items+=`<div class="pp-item" onclick="openFile('${b.id}')"><b>${b.name}</b><div class="pp-ctx">${b.ctx}</div></div>`;
+    }
+  }
+  return `<div class="md panel-page">
+    <h1>Backlinks</h1>
+    <p style="color:var(--text-muted);margin-bottom:16px">Incoming links to <a class="link" onclick="openFile('${ctx}')">${ctxName}</a> (US-4.4)</p>
+    ${items}
+  </div>`;
+}
+
+function buildTagsPage(){
+  let items='';
+  for(const t of ALL_TAGS){
+    const fileLinks=t.files.map(f=>{
+      const pg=PAGES[f];
+      return pg?`<a class="link" onclick="openFile('${f}')" style="font-size:12px">${pg.title}</a>`:'';
+    }).filter(Boolean).join(', ');
+    items+=`<div class="pp-item"><b>${t.name}</b><span class="tag-count">(${t.count})</span><div class="pp-ctx">${fileLinks}</div></div>`;
+  }
+  return `<div class="md panel-page">
+    <h1>Tags</h1>
+    <p style="color:var(--text-muted);margin-bottom:16px">All tags in vault (US-4.6)</p>
+    <div class="tag-grid" style="margin-bottom:20px">${ALL_TAGS.map(t=>`<span class="tag-chip">${t.name}<span class="tag-count">${t.count}</span></span>`).join('')}</div>
+    <h2>Tag Details</h2>
+    ${items}
+  </div>`;
+}
+
+function buildGraphPage(){
+  return `<div class="md panel-page">
+    <h1>Graph View</h1>
+    <p style="color:var(--text-muted);margin-bottom:16px">Note link network (US-4.8) &mdash; Depth: 2 hops (US-4.10)</p>
+    <div class="graph-canvas-wrap">
+      <canvas id="graphCanvas" width="700" height="440" style="width:100%;height:100%"></canvas>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-ghost" onclick="graphDepth=1;drawGraph()">1 hop</button>
+      <button class="btn btn-primary" onclick="graphDepth=2;drawGraph()">2 hops</button>
+      <button class="btn btn-ghost" onclick="graphDepth=3;drawGraph()">3 hops</button>
+    </div>
+  </div>`;
+}
+
+// Register dynamic pages
+PAGES['_backlinks']={title:'Backlinks',get html(){return buildBacklinksPage()}};
+PAGES['_tags']={title:'Tags',get html(){return buildTagsPage()}};
+PAGES['_graph']={title:'Graph View',get html(){return buildGraphPage()}};
+
+// === State ===
+let openTabs=['stories'];
+let activeTab='stories';
+let activePanel='files';
+let searchMode='keyword';
+let graphDepth=2;
+
+// === Render ===
+function render(){
+  renderTree();
+  renderTabs();
+  renderEditor();
+}
+
+function renderTree(){
+  const el=document.getElementById('fileTree');
+  el.innerHTML='';
+  function rn(nodes,parent){
+    for(const n of nodes){
+      if(n.type==='folder'){
+        const d=document.createElement('div');
+        const t=document.createElement('div');
+        t.className='fd';
+        t.innerHTML=`<span class="fd-icon">${n.open?'&#9660;':'&#9654;'}</span>${n.name}`;
+        t.onclick=()=>{n.open=!n.open;renderTree()};
+        d.appendChild(t);
+        const c=document.createElement('div');
+        c.className='fc'+(n.open?'':' closed');
+        if(n.children) rn(n.children,c);
+        d.appendChild(c);
+        parent.appendChild(d);
+      } else {
+        const f=document.createElement('div');
+        f.className='fi'+(activeTab===n.id?' on':'');
+        f.textContent=n.name;
+        f.onclick=()=>openFile(n.id);
+        parent.appendChild(f);
+      }
+    }
+  }
+  rn(FS,el);
+}
+
+function renderTabs(){
+  const el=document.getElementById('tabBar');
+  el.innerHTML='';
+  for(const id of openTabs){
+    const pg=PAGES[id];
+    if(!pg) continue;
+    const t=document.createElement('div');
+    t.className='tab'+(activeTab===id?' on':'');
+    t.innerHTML=`<span onclick="openFile('${id}')" style="flex:1;overflow:hidden;text-overflow:ellipsis">${pg.title}</span><span class="x" onclick="event.stopPropagation();closeTab('${id}')">&#10005;</span>`;
+    el.appendChild(t);
+  }
+}
+
+function renderEditor(){
+  const el=document.getElementById('editorArea');
+  if(activeTab && PAGES[activeTab]){
+    el.innerHTML=PAGES[activeTab].html;
+    // If graph page is active, draw after DOM update
+    if(activeTab==='_graph') requestAnimationFrame(drawGraph);
+  } else {
+    el.innerHTML=`<div class="ed-empty"><div style="font-size:24px">&#128196;</div><div>No file open</div><div style="font-size:12px">Cmd+P to Quick Switch (US-3.3)</div></div>`;
+  }
+}
+
+// Graph drawing on canvas
+function drawGraph(){
+  const c=document.getElementById('graphCanvas');
+  if(!c) return;
+  const ctx=c.getContext('2d');
+  const W=c.width, H=c.height;
+  ctx.clearRect(0,0,W,H);
+
+  // Build full graph from backlinks
+  const allNodeIds=new Set();
+  const allEdges=[];
+  for(const[src,bls] of Object.entries(BACKLINKS)){
+    allNodeIds.add(src);
+    for(const b of bls){allNodeIds.add(b.id);allEdges.push({from:b.id,to:src})}
+  }
+  const nodeArr=[...allNodeIds];
+  // Layout in a circle
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.35;
+  const posMap={};
+  nodeArr.forEach((id,i)=>{
+    const a=(2*Math.PI*i/nodeArr.length)-Math.PI/2;
+    posMap[id]={x:cx+Math.cos(a)*R, y:cy+Math.sin(a)*R};
+  });
+
+  // Draw edges
+  ctx.strokeStyle='rgba(124,106,242,0.25)';
+  ctx.lineWidth=1;
+  for(const e of allEdges){
+    const f=posMap[e.from], t=posMap[e.to];
+    if(!f||!t) continue;
+    ctx.beginPath();ctx.moveTo(f.x,f.y);ctx.lineTo(t.x,t.y);ctx.stroke();
+  }
+
+  // Draw nodes
+  const realFiles2=openTabs.filter(t=>!t.startsWith('_'));
+  const focus=realFiles2.length?realFiles2[realFiles2.length-1]:'stories';
+  for(const id of nodeArr){
+    const p=posMap[id];
+    const isFocus=id===focus;
+    const r=isFocus?8:5;
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,2*Math.PI);
+    ctx.fillStyle=isFocus?'#7c6af2':'#888';
+    ctx.fill();
+    if(isFocus){
+      ctx.strokeStyle='rgba(124,106,242,0.4)';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(p.x,p.y,r+5,0,2*Math.PI);ctx.stroke();
+    }
+    // Label
+    const pg=PAGES[id];
+    const label=pg?pg.title:id;
+    ctx.font=isFocus?'bold 11px sans-serif':'10px sans-serif';
+    ctx.fillStyle=isFocus?'#ddd':'#999';
+    ctx.textAlign='center';
+    ctx.fillText(label,p.x,p.y+r+14);
+  }
+}
+
+// === Actions ===
+function openFile(id){
+  if(!PAGES[id]) return;
+  if(!openTabs.includes(id)) openTabs.push(id);
+  activeTab=id;
+  closeModal();
+  render();
+}
+
+function closeTab(id){
+  openTabs=openTabs.filter(t=>t!==id);
+  if(activeTab===id) activeTab=openTabs.length?openTabs[openTabs.length-1]:null;
+  render();
+}
+
+function switchPanel(name){
+  activePanel=name;
+  document.querySelectorAll('.rb[data-panel]').forEach(r=>{
+    r.classList.toggle('on',r.dataset.panel===name);
+  });
+  document.querySelectorAll('.left-panel').forEach(p=>p.style.display='none');
+  const target=document.getElementById('panel-'+name);
+  if(target) target.style.display='';
+}
+
+function setSearchMode(mode){
+  searchMode=mode;
+  document.getElementById('stbKeyword').classList.toggle('on',mode==='keyword');
+  document.getElementById('stbSemantic').classList.toggle('on',mode==='semantic');
+  doSearch();
+}
+
+function doSearch(){
+  const q=document.getElementById('searchInput').value.toLowerCase();
+  const el=document.getElementById('searchResults');
+  if(!q){el.innerHTML='<div style="font-size:12px;color:var(--text-faint);padding:8px">Type to search...</div>';return;}
+  const results=flatFiles.filter(f=>f.name.toLowerCase().includes(q)||f.path.toLowerCase().includes(q));
+  el.innerHTML='';
+  if(searchMode==='semantic'){
+    el.innerHTML=`<div style="font-size:11px;color:var(--accent);padding:6px 8px;margin-bottom:4px">&#129504; Semantic search (US-4.13): "${q}"</div>`;
+  }
+  if(results.length===0){
+    el.innerHTML+='<div style="font-size:12px;color:var(--text-faint);padding:8px">No results</div>';
+    return;
+  }
+  for(const r of results){
+    const d=document.createElement('div');
+    d.className='sr';
+    d.innerHTML=`<b>${r.name}</b><br><span style="font-size:10px;opacity:.6">${r.path}</span>`;
+    d.onclick=()=>openFile(r.id);
+    el.appendChild(d);
+  }
+}
+
+// Terminal panel (right side)
+function openTerm(tab){
+  document.getElementById('termPanel').classList.add('open');
+  switchBt(tab||'term1');
+}
+function closeTerm(){
+  document.getElementById('termPanel').classList.remove('open');
+}
+function toggleTerm(){
+  document.getElementById('termPanel').classList.toggle('open');
+}
+function switchBt(tab){
+  document.querySelectorAll('.bt-tab').forEach(t=>t.classList.toggle('on',t.dataset.bt===tab));
+  ['term1','term2','gitdiff'].forEach(id=>{
+    const e=document.getElementById('bt-'+id);
+    if(e) e.classList.toggle('hide',id!==tab);
+  });
+}
+
+// Quick Switcher
+function toggleModal(){
+  const m=document.getElementById('qsModal');
+  m.classList.toggle('show');
+  if(m.classList.contains('show')){
+    const inp=document.getElementById('qsInput');
+    inp.value='';
+    filterQS();
+    inp.focus();
+  }
+}
+function closeModal(){document.getElementById('qsModal').classList.remove('show')}
+
+function filterQS(){
+  const q=document.getElementById('qsInput').value.toLowerCase();
+  const el=document.getElementById('qsList');
+  el.innerHTML='';
+  const filtered=flatFiles.filter(f=>!q||f.name.toLowerCase().includes(q)||f.path.toLowerCase().includes(q));
+  filtered.forEach((f,i)=>{
+    const d=document.createElement('div');
+    d.className='ml-item'+(i===0?' sel':'');
+    d.innerHTML=`<span>${f.name}</span><span class="ml-sub">${f.path}</span>`;
+    d.onclick=()=>openFile(f.id);
+    el.appendChild(d);
+  });
+}
+
+// Commit
+function doCommit(){
+  const msg=document.getElementById('commitMsg').value;
+  if(!msg){alert('Please enter a commit message');return;}
+  alert('Committed: '+msg+'\nAuto-sync will push in background (US-5.9)');
+  document.getElementById('commitMsg').value='';
+}
+
+// Publish modals
+function showPublish(type){
+  const m=document.getElementById('pubModal');
+  m.classList.add('show');
+  if(type==='blog'){
+    document.getElementById('pubTitle').textContent='Draft Blog Article (US-8.1)';
+    document.getElementById('pubDesc').textContent='AI will generate a blog draft from today\'s session log. Review before publishing to Zenn (US-8.4).';
+    document.getElementById('pubContent').value='# Tauri IPC設計: ファイルI/Oの実装\n\n今日はTechtiteのIPC層を実装しました。TauriのinvokeパターンでRustバックエンドと通信する...\n\n(AI auto-generated draft)';
+    document.getElementById('pubAction').textContent='Publish to Zenn (US-8.4)';
+    document.getElementById('pubAction').className='btn btn-green';
+  } else if(type==='x'){
+    document.getElementById('pubTitle').textContent='Draft X Post (US-9.1)';
+    document.getElementById('pubDesc').textContent='AI-generated summary for X (max ~140 chars JP). Review before posting (US-9.2).';
+    document.getElementById('pubContent').value='TechtiteのIPC層を実装完了。TauriのinvokeパターンでRust↔TypeScript間のファイルI/Oが動作。次はファイル監視の実装へ。 #Tauri #Rust #開発日記';
+    document.getElementById('pubAction').textContent='Post to X (US-9.2)';
+    document.getElementById('pubAction').className='btn btn-blue';
+  } else {
+    document.getElementById('pubTitle').textContent='Draft Threads Post (US-9.3)';
+    document.getElementById('pubDesc').textContent='Post summary to Threads (US-9.3).';
+    document.getElementById('pubContent').value='IPC File I/O implementation complete for Techtite project. Using Tauri invoke pattern.';
+    document.getElementById('pubAction').textContent='Post to Threads (US-9.3)';
+    document.getElementById('pubAction').className='btn btn-primary';
+  }
+}
+function closePub(){document.getElementById('pubModal').classList.remove('show')}
+function doPub(){alert('Published successfully!');closePub()}
+
+// Conflict
+function showConflict(){document.getElementById('conflictModal').classList.add('show')}
+function closeConflict(){document.getElementById('conflictModal').classList.remove('show')}
+
+// Keyboard shortcuts
+document.addEventListener('keydown',e=>{
+  if((e.metaKey||e.ctrlKey)&&e.key==='p'){e.preventDefault();toggleModal()}
+  if(e.key==='Escape'){closeModal();closePub();closeConflict()}
+  if((e.metaKey||e.ctrlKey)&&e.key==='`'){e.preventDefault();toggleTerm()}
+});
+
+// Click outside modal
+document.getElementById('qsModal').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal()});
+
+// Init
+render();
+</script>
+</body>
+</html>

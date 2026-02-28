@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Techtite - ユーザーストーリー一覧</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif; background: #0f1117; color: #e1e4e8; display: flex; height: 100vh; }
+  .sidebar { width: 280px; min-width: 280px; background: #161822; border-right: 1px solid #2a2d3a; display: flex; flex-direction: column; overflow: hidden; }
+  .sidebar-header { padding: 20px 16px 12px; border-bottom: 1px solid #2a2d3a; }
+  .sidebar-header h1 { font-size: 18px; color: #c9a0ff; margin-bottom: 4px; }
+  .sidebar-header p { font-size: 11px; color: #8b8fa3; }
+  .sidebar-filters { padding: 12px 16px; border-bottom: 1px solid #2a2d3a; }
+  .sidebar-filters label { font-size: 11px; color: #8b8fa3; display: block; margin-bottom: 6px; }
+  .filter-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; cursor: pointer; border: 1px solid transparent; transition: all .15s; user-select: none; }
+  .chip.active { opacity: 1; }
+  .chip:not(.active) { opacity: .4; }
+  .chip-must { background: #2a1a1a; color: #ff6b6b; border-color: #ff6b6b44; }
+  .chip-should { background: #2a2a1a; color: #ffd93d; border-color: #ffd93d44; }
+  .chip-could { background: #1a2a1a; color: #6bcb77; border-color: #6bcb7744; }
+  .chip-wont { background: #1a1a2a; color: #8b8fa3; border-color: #8b8fa344; }
+  .sidebar-nav { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .nav-epic { padding: 0 8px; margin-bottom: 2px; }
+  .nav-epic-title { font-size: 12px; font-weight: 600; color: #8b8fa3; padding: 8px 8px 4px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+  .nav-epic-title:hover { color: #c9a0ff; }
+  .nav-epic-title .arrow { font-size: 10px; transition: transform .15s; }
+  .nav-epic-title .arrow.open { transform: rotate(90deg); }
+  .nav-us { list-style: none; }
+  .nav-us li { font-size: 12px; padding: 4px 8px 4px 24px; cursor: pointer; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #a0a4b8; }
+  .nav-us li:hover { background: #1e2030; color: #e1e4e8; }
+  .nav-us li.active { background: #2a1f47; color: #c9a0ff; }
+  .nav-us li.hidden { display: none; }
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .main-header { padding: 16px 32px; border-bottom: 1px solid #2a2d3a; background: #161822; display: flex; align-items: center; justify-content: space-between; }
+  .main-header h2 { font-size: 16px; color: #e1e4e8; }
+  .stats { display: flex; gap: 16px; font-size: 12px; color: #8b8fa3; }
+  .stats span { display: flex; align-items: center; gap: 4px; }
+  .stats .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .main-content { flex: 1; overflow-y: auto; padding: 24px 32px 64px; }
+  .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 32px; }
+  .summary-card { background: #1a1c2a; border: 1px solid #2a2d3a; border-radius: 8px; padding: 16px; text-align: center; }
+  .summary-card .num { font-size: 28px; font-weight: 700; }
+  .summary-card .lbl { font-size: 11px; color: #8b8fa3; margin-top: 4px; }
+  .summary-card.must .num { color: #ff6b6b; }
+  .summary-card.should .num { color: #ffd93d; }
+  .summary-card.could .num { color: #6bcb77; }
+  .summary-card.wont .num { color: #8b8fa3; }
+  .epic-section { margin-bottom: 36px; }
+  .epic-title { font-size: 18px; font-weight: 700; color: #c9a0ff; margin-bottom: 4px; padding-bottom: 8px; border-bottom: 2px solid #2a1f47; }
+  .epic-desc { font-size: 13px; color: #8b8fa3; margin-bottom: 16px; line-height: 1.6; }
+  .story-card { background: #1a1c2a; border: 1px solid #2a2d3a; border-radius: 8px; padding: 16px 20px; margin-bottom: 12px; transition: border-color .15s; }
+  .story-card:hover { border-color: #3a3d5a; }
+  .story-card.hidden { display: none; }
+  .story-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  .story-id { font-size: 12px; font-weight: 700; color: #c9a0ff; min-width: 56px; padding-top: 2px; }
+  .story-title { font-size: 14px; color: #e1e4e8; flex: 1; line-height: 1.5; }
+  .badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .badge-must { background: #ff6b6b22; color: #ff6b6b; }
+  .badge-should { background: #ffd93d22; color: #ffd93d; }
+  .badge-could { background: #6bcb7722; color: #6bcb77; }
+  .badge-wont { background: #8b8fa322; color: #8b8fa3; }
+  .story-actor { font-size: 11px; color: #8b8fa3; margin-bottom: 10px; padding-left: 66px; }
+  .story-actor strong { color: #a0a4b8; }
+  .criteria-title { font-size: 11px; color: #8b8fa3; margin-bottom: 6px; padding-left: 66px; }
+  .criteria-list { list-style: none; padding-left: 66px; }
+  .criteria-list li { font-size: 13px; color: #a0a4b8; padding: 3px 0; display: flex; align-items: flex-start; gap: 8px; line-height: 1.5; }
+  .criteria-list li input[type="checkbox"] { accent-color: #c9a0ff; margin-top: 4px; cursor: pointer; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2d3a; border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a3d5a; }
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .summary { grid-template-columns: repeat(2, 1fr); }
+    .main-content { padding: 16px; }
+    .story-actor, .criteria-title, .criteria-list { padding-left: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1>Techtite</h1>
+    <p>AI Agent Editor + Knowledge Base</p>
+  </div>
+  <div class="sidebar-filters">
+    <label>Priority Filter</label>
+    <div class="filter-chips">
+      <span class="chip chip-must active" data-priority="must" onclick="toggleFilter(this)">Must</span>
+      <span class="chip chip-should active" data-priority="should" onclick="toggleFilter(this)">Should</span>
+      <span class="chip chip-could active" data-priority="could" onclick="toggleFilter(this)">Could</span>
+      <span class="chip chip-wont active" data-priority="wont" onclick="toggleFilter(this)">Won't</span>
+    </div>
+  </div>
+  <div class="sidebar-nav" id="sidebarNav"></div>
+</div>
+<div class="main">
+  <div class="main-header">
+    <h2 id="mainTitle">User Stories</h2>
+    <div class="stats">
+      <span><span class="dot" style="background:#ff6b6b"></span> Must: <b id="statMust">0</b></span>
+      <span><span class="dot" style="background:#ffd93d"></span> Should: <b id="statShould">0</b></span>
+      <span><span class="dot" style="background:#6bcb77"></span> Could: <b id="statCould">0</b></span>
+      <span><span class="dot" style="background:#8b8fa3"></span> Won't: <b id="statWont">0</b></span>
+    </div>
+  </div>
+  <div class="main-content" id="mainContent"></div>
+</div>
+<script>
+const DATA=[
+{epic:"Epic 1: デスクトップアプリケーション基盤",desc:"Tauriベースのデスクトップアプリケーションシェル。ローカルファイルシステムへのアクセス、ウィンドウ管理など、すべての機能の土台となる基盤。",stories:[
+{id:"US-1.1",priority:"must",actor:"個人開発者",title:"アプリケーションを起動してプロジェクトフォルダ（Vault）を開きたい。なぜなら、ローカルに保存されたプロジェクトのコードとドキュメントにすぐにアクセスしたいからだ。",criteria:["アプリ起動時にフォルダ選択ダイアログ、または前回のVaultを自動で開ける","選択したフォルダ内のファイル・フォルダ構造が正しく読み込まれる","存在しないパスを指定した場合にエラーメッセージが表示される"]},
+{id:"US-1.2",priority:"must",actor:"個人開発者",title:"複数のファイルをタブで同時に開きたい。なぜなら、コードファイルとドキュメントを並行して参照・編集する必要があるからだ。",criteria:["ファイルをクリックまたはQuick Switcherで開くとタブが追加される","タブをクリックして表示を切り替えられる","タブの閉じるボタンまたはショートカットでタブを閉じられる","未保存の変更があるタブにインジケータが表示される"]},
+{id:"US-1.3",priority:"should",actor:"個人開発者",title:"エディタ画面をペイン分割して複数ファイルを同時表示したい。なぜなら、コードを書きながら関連ドキュメントを参照したいからだ。",criteria:["水平・垂直方向にペインを分割できる","各ペインで独立したタブを管理できる","ペインの境界をドラッグしてサイズを調整できる"]},
+{id:"US-1.4",priority:"should",actor:"個人開発者",title:"前回終了時のウィンドウ状態（開いていたタブ・ペイン配置）が復元されてほしい。",criteria:["アプリ終了時にウィンドウサイズ・位置・タブ・ペイン配置が保存される","次回起動時に前回の状態が復元される"]},
+{id:"US-1.5",priority:"must",actor:"AIエージェント",title:"IPC経由でローカルファイルシステムの読み書きができるようにしたい。なぜなら、プロジェクト内のコードとドキュメントをプログラム的に操作する必要があるからだ。",criteria:["Vault内のファイルの読み取り・書き込み・作成・削除がIPC経由で実行できる","ファイル変更イベントがフロントエンドに通知される","Vault外へのアクセスが制限される（セキュリティ）"]}
+]},
+{epic:"Epic 2: マークダウンエディタ（コアエディタ）",desc:"CodeMirror 6ベースのLive Preview対応マークダウンエディタ。人間がマークダウンドキュメントを編集する主要インターフェース。",stories:[
+{id:"US-2.1",priority:"must",actor:"個人開発者",title:"マークダウンファイルをLive Previewモードで編集したい。なぜなら、ソースコードを直接編集しながら、整形された表示を同時に確認したいからだ。",criteria:["カーソルがある行はMarkdownソースが表示される","カーソルが離れた行はリッチな表示に変換される","元のプレーンテキストが破壊されない（非破壊的レンダリング）","ソースモードとLive Previewモードを切り替えられる"]},
+{id:"US-2.2",priority:"must",actor:"個人開発者",title:"基本的なMarkdown記法が正しくレンダリングされてほしい。なぜなら、構造化されたドキュメントを快適に読み書きしたいからだ。",criteria:["見出し（h1〜h6）がフォントサイズ・スタイルで区別して表示される","順序付き/順序なしリスト・チェックリストが正しくレンダリングされる","太字・イタリック・取り消し線・インラインコードが視覚的に反映される","コードブロックがシンタックスハイライト付きで表示される","引用・テーブル・水平線が正しく表示される"]},
+{id:"US-2.3",priority:"should",actor:"個人開発者",title:"YAML FrontmatterをGUIで視覚的に編集したい。なぜなら、YAMLの構文エラーを気にせずメタデータを安全に管理したいからだ。",criteria:["YAML Frontmatterがエディタ上部にGUIフォームとして表示される","文字列、リスト、日付、チェックボックスの各データ型を視覚的に編集できる","GUI編集の結果が正しいYAML形式でファイルに保存される","YAML構文が壊れないことが保証される"]},
+{id:"US-2.4",priority:"could",actor:"個人開発者",title:"数式（LaTeX記法）がエディタ上でレンダリングされてほしい。",criteria:["インライン数式がLive Previewで数式としてレンダリングされる","ブロック数式がLive Previewで数式としてレンダリングされる"]},
+{id:"US-2.5",priority:"should",actor:"個人開発者",title:"画像をマークダウン内に埋め込み、プレビュー表示したい。",criteria:["![alt](path) 記法の画像がLive Previewで表示される","Vault内の相対パスの画像が正しく解決・表示される","画像が存在しない場合にエラー表示が出る"]},
+{id:"US-2.6",priority:"must",actor:"個人開発者",title:"コードファイル（.ts, .py, .rs等）をシンタックスハイライト付きで閲覧したい。なぜなら、AIエージェントが書いたコードをレビューしたいからだ。",criteria:["コードファイルを開くとシンタックスハイライト付きで表示される","行番号が表示される","読み取り専用モードがデフォルトとなる","必要に応じて編集モードに切り替えられる"]},
+{id:"US-2.7",priority:"must",actor:"AIエージェント",title:"マークダウンファイルおよびコードファイルの内容をプレーンテキストとして読み書きしたい。",criteria:["ファイルの内容をプレーンテキスト（UTF-8）として読み取れる","プレーンテキストを書き込むとファイルとして正しく保存される","ファイルの保存後、エディタの表示が自動的に更新される"]}
+]},
+{epic:"Epic 3: プロジェクト・ファイル管理",desc:"フォルダベースのプロジェクト管理機能。ファイルエクスプローラ、ナビゲーション、コマンド実行を統合する。",stories:[
+{id:"US-3.1",priority:"must",actor:"個人開発者",title:"サイドバーにフォルダツリー形式のファイルエクスプローラを表示したい。",criteria:["サイドバーにVault内のフォルダ・ファイルがツリー構造で表示される","フォルダの展開・折りたたみができる","ファイルをクリックするとエディタで開かれる","ファイルシステムの変更がリアルタイムで反映される"]},
+{id:"US-3.2",priority:"must",actor:"個人開発者",title:"ファイルやフォルダの作成・移動・削除・リネームをアプリ内で行いたい。",criteria:["右クリックメニューで新規ファイル・フォルダを作成できる","ドラッグ＆ドロップでファイルを移動できる","ファイル・フォルダの削除ができる（確認ダイアログ付き）","ファイル・フォルダのリネームができる","ファイル移動・リネーム時に内部リンクが自動更新される"]},
+{id:"US-3.3",priority:"should",actor:"個人開発者",title:"Quick Switcher（ファジー検索）でファイルを素早く開きたい。",criteria:["ショートカットキーでQuick Switcherモーダルが開く","ファジーマッチでファイル名候補がリアルタイム表示される","EnterキーまたはクリックでファイルID選択・遷移できる","候補表示が高速（100ms以内）である"]},
+{id:"US-3.4",priority:"should",actor:"個人開発者",title:"コマンドパレットからすべてのアクションを検索・実行したい。",criteria:["ショートカットキーでコマンドパレットが開く","すべてのコマンドがテキスト検索で絞り込める","コマンド選択で対応するアクションが実行される","各コマンドにキーボードショートカットが表示される"]},
+{id:"US-3.5",priority:"must",actor:"AIエージェント",title:"プロジェクト内のファイル一覧とフォルダ構造を取得したい。",criteria:["API経由でVault内の全ファイル・フォルダのツリー構造を取得できる","各ファイルのパス、サイズ、更新日時等のメタデータが含まれる"]}
+]},
+{epic:"Epic 4: ナレッジベース機能",desc:"Obsidianの核となるナレッジ管理機能。ノート間のリンク構造を構築し、情報の関係性を活用する。ベクトルインデックス/RAGによるセマンティック検索を含む。",stories:[
+{id:"US-4.1",priority:"must",actor:"個人開発者",title:"[[ファイル名]] 記法で他のノートへの内部リンクを作成したい。",criteria:["[[ を入力するとリンク作成モードに入る","[[ファイル名]] がリンクとして視覚的に区別される","存在しないファイルへのリンクが色やスタイルで区別される"]},
+{id:"US-4.2",priority:"should",actor:"個人開発者",title:"内部リンク入力時にオートコンプリートで候補が表示されてほしい。",criteria:["[[ の後にテキストを入力すると候補リストが表示される","候補はファジーマッチで絞り込まれる","候補を選択すると [[ファイル名]] が補完される"]},
+{id:"US-4.3",priority:"must",actor:"個人開発者",title:"内部リンクをクリックしてリンク先のノートに直接遷移したい。",criteria:["内部リンクをクリックするとリンク先ファイルが開く","リンク先が存在しない場合、新規ファイル作成の確認が表示される"]},
+{id:"US-4.4",priority:"should",actor:"個人開発者",title:"現在のノートに対するバックリンクを一覧表示したい。",criteria:["サイドパネルにバックリンク一覧が表示される","各バックリンクにリンク元ファイル名と前後テキストが表示される","バックリンクをクリックするとリンク元に遷移する"]},
+{id:"US-4.5",priority:"could",actor:"個人開発者",title:"未リンク言及も検出・表示してほしい。",criteria:["バックリンクパネルに「未リンク言及」セクションが表示される","ノート名と一致するテキストがVault内から検出される","未リンク言及をクリックして内部リンクに変換できる"]},
+{id:"US-4.6",priority:"should",actor:"個人開発者",title:"#タグ 記法でノートにタグを付与し、一覧・フィルタリングしたい。",criteria:["#タグ名 がタグとして視覚的に区別される","Vault内のすべてのタグを一覧表示するパネルがある","タグをクリックするとそのタグを持つノートが表示される","ネストされたタグがサポートされる"]},
+{id:"US-4.7",priority:"must",actor:"個人開発者",title:"プロジェクト内の全ファイルを対象にキーワードで全文検索したい。",criteria:["検索パネルでキーワード検索が実行される","検索結果にファイル名と一致箇所のプレビューが表示される","検索結果をクリックすると該当箇所に遷移する","検索が1秒以内に完了する"]},
+{id:"US-4.8",priority:"should",actor:"個人開発者",title:"Graph Viewでノート間のリンク関係をネットワークグラフとして可視化したい。",criteria:["ノートがノード、内部リンクがエッジとして描画される","ノードをドラッグして配置を調整できる","ノードをクリックするとノートが開く","グラフ表示がUIをブロックしない"]},
+{id:"US-4.9",priority:"could",actor:"個人開発者",title:"Graph Viewをタグやフォルダで絞り込みたい。",criteria:["タグでノードをフィルタリングできる","フォルダでノードをフィルタリングできる","フィルタ適用後にグラフが再描画される"]},
+{id:"US-4.10",priority:"could",actor:"個人開発者",title:"特定のノートを起点としたローカルグラフ（2-3ホップ）を表示したい。",criteria:["現在のノートを起点としたローカルグラフを表示できる","表示する深さ（ホップ数）を設定できる","ローカルグラフ内のノードをクリックするとノートが開く"]},
+{id:"US-4.11",priority:"should",actor:"AIエージェント",title:"ノート間のリンク構造（内部リンク・バックリンク・タグ）を参照したい。",criteria:["API経由で指定ファイルの内部リンク一覧を取得できる","API経由でバックリンク一覧を取得できる","API経由で全タグとそれに紐づくファイル一覧を取得できる"]},
+{id:"US-4.12",priority:"should",actor:"個人開発者",title:"Vault内のドキュメントが自動的にベクトルインデックス化されてほしい。",criteria:["Vault内ファイルがローカルEmbeddingモデルで自動ベクトル化される","ファイル変更時にインデックスが差分更新される","マークダウン構造を考慮したチャンキングが行われる","インデックス構築はバックグラウンドで実行される","RAG機能のオン/オフを切り替えられる"]},
+{id:"US-4.13",priority:"should",actor:"個人開発者",title:"自然言語で質問してセマンティック検索したい。",criteria:["キーワード検索とセマンティック検索を切り替えられる","自然言語の質問文で関連ドキュメントが検索される","検索結果に類似度スコアとプレビューが表示される","検索結果から該当箇所に遷移できる"]},
+{id:"US-4.14",priority:"should",actor:"AIエージェント",title:"セマンティック検索でタスクに関連するコンテキストを取得したい。",criteria:["API経由でセマンティック検索が実行できる","検索結果にファイルパス、該当セクション、類似度スコアが含まれる","top-kを指定できる","ハイブリッド検索が実行できる"]},
+{id:"US-4.15",priority:"could",actor:"個人開発者",title:"複数のVaultを横断してセマンティック検索したい。",criteria:["検索対象に他のVaultを追加できる","検索結果にVault名が表示される","検索対象Vaultのフィルタリングができる"]},
+{id:"US-4.16",priority:"should",actor:"個人開発者",title:"ナレッジベースに対してチャット形式で質問したい。",criteria:["ナレッジ検索AIチャットパネルが開ける","RAGした上でAIが回答する","回答に参照元ドキュメントへのリンクが含まれる","会話の文脈を保持して連続質問できる"]},
+{id:"US-4.17",priority:"could",actor:"個人開発者",title:"Embeddingモデルやベクトルデータベースを外部サービスに切り替えたい。",criteria:["設定画面でEmbeddingモデルを切り替えられる","外部Embedding APIの設定ができる","外部Vector DBへの接続設定ができる","ローカル/外部モードをプロジェクト単位で切り替えられる"]},
+{id:"US-4.18",priority:"could",actor:"個人開発者",title:"RAGの検索精度が自動モニタリング・自動最適化されてほしい。",criteria:["サンプルクエリで検索品質を定期自動測定する","インデックスのヘルス指標が確認できる","品質低下時にパラメータ自動チューニングが実行される","インデックスの自動再構築が実行される"]},
+{id:"US-4.19",priority:"wont",actor:"個人開発者",title:"検索行動から暗黙フィードバックが収集され、検索精度が改善されてほしい。",criteria:["クリック位置・スキップパターンが暗黙フィードバックとして収集される","AIチャットでの質問と参照ドキュメントの関連性が記録される","フィードバックがRAG品質スコアに反映される","フィードバックデータはローカルに保存され外部に送信されない"]}
+]},
+{epic:"Epic 5: Git統合・透過的同期",desc:"Gitをバージョン管理と複数端末間同期の基盤として利用するが、一般ユーザーにはGitを意識させない。UIとしては「普通のアプリの同期」として見せる。",stories:[
+{id:"US-5.1",priority:"must",actor:"個人開発者",title:"プロジェクトフォルダ内のGitリポジトリを自動的に認識してほしい。",criteria:["Vault内に.gitがある場合、自動的にGitリポジトリとして認識される","ステータスバーに現在のブランチ名が表示される","Gitが存在しない場合はGit機能が無効化される"]},
+{id:"US-5.2",priority:"must",actor:"個人開発者",title:"ファイルの変更差分をアプリ内で確認したい。",criteria:["変更のあるファイルの一覧が表示される","ファイルを選択すると追加・削除・変更行が色分け表示される"]},
+{id:"US-5.3",priority:"must",actor:"個人開発者",title:"アプリ内からコミットを作成したい。",criteria:["ファイルのステージ操作ができる","コミットメッセージを入力してコミットを実行できる","コミット成功後、変更ファイル一覧がリセットされる"]},
+{id:"US-5.4",priority:"should",actor:"個人開発者",title:"コミット履歴を閲覧したい。",criteria:["コミット履歴がリスト形式で表示される","コミットを選択すると変更ファイル・差分が表示される"]},
+{id:"US-5.5",priority:"should",actor:"個人開発者",title:"ブランチの作成・切り替え・マージがバックグラウンドで自動管理されてほしい。",criteria:["必要に応じてブランチが自動作成される","マージが自動で実行される","マージ競合発生時にユーザーに通知される","開発者向けに手動ブランチ操作も可能"]},
+{id:"US-5.6",priority:"should",actor:"個人開発者",title:".gitignoreに基づいてファイル表示を制御したい。",criteria:[".gitignoreパターンに一致するファイルがエクスプローラから非表示になる",".gitignoreパターンが検索・インデックス対象から除外される","非表示/表示の切り替えオプションがある","ローカル専用データが.gitignoreに自動登録される"]},
+{id:"US-5.7",priority:"must",actor:"AIエージェント",title:"Gitの操作をプログラム的に実行したい。",criteria:["API経由でステージ・コミット・差分取得が実行できる","API経由でブランチ一覧・現在のブランチを取得できる"]},
+{id:"US-5.8",priority:"must",actor:"個人開発者",title:"リモートリポジトリへの接続を簡単に設定したい。",criteria:["設定画面でリモートリポジトリURL・認証情報を設定できる","PATまたはSSHキーによる認証設定ができる","接続テスト（疎通確認）ができる","設定完了後、自動同期が即座に有効になる"]},
+{id:"US-5.9",priority:"must",actor:"個人開発者",title:"ファイルの変更がバックグラウンドでリモートに自動同期されてほしい。",criteria:["一定時間窓内の変更をバッチで1コミットにまとめcommit+pushが実行される","コミットメッセージがAIにより自動生成される","アプリ起動時にリモート変更が自動pullされる","同期タイミングを設定で選択できる","手動コミットとの併用が可能","自動コミットと手動コミットが履歴上で区別できる"]},
+{id:"US-5.10",priority:"must",actor:"個人開発者",title:"同期の状態をステータスバーで確認したい。",criteria:["ステータスバーに同期状態アイコンが表示される","最終同期日時が表示される","エラー詳細を確認できる","手動で「今すぐ同期」ボタンを押せる"]},
+{id:"US-5.11",priority:"must",actor:"個人開発者",title:"同期の競合が発生した場合に通知を受け、簡単に解決したい。",criteria:["競合発生時にユーザーに通知される","「ローカル優先/リモート優先」の選択肢がシンプルに提示される","「AIに相談する」ボタンで競合解決提案を求められる","バイナリファイルの競合は自動検出され選択肢が提示される","競合解決の履歴がログとして保存される"]},
+{id:"US-5.12",priority:"should",actor:"個人開発者",title:"同期の競合がエージェントにより自動解決されてほしい。",criteria:["テキストファイルの競合に対しエージェントが自動マージを試みる","自動解決できた場合は通知のみ表示される","信頼度が低い場合は手動確認を促す","大量競合の処理上限が設定可能"]}
+]},
+{epic:"Epic 6: AIエージェント管理・ターミナル",desc:"複数のClaude Codeエージェントを並列稼働させる管理基盤。ターミナルとダッシュボード、アンビエントエージェント（マネージャー）による監視・管理を含む。",stories:[
+{id:"US-6.1",priority:"must",actor:"個人開発者",title:"アプリ内に組み込みターミナルを開きたい。",criteria:["ペイン下部またはタブとしてターミナルを開ける","ショートカットキーで表示/非表示を切り替えられる","標準的なシェル（zsh/bash）が動作する"]},
+{id:"US-6.2",priority:"must",actor:"個人開発者",title:"ターミナルを複数タブで開き、各AIエージェントの入出力を個別に確認したい。",criteria:["新しいターミナルタブを追加できる","各タブにエージェント名のラベルを付けられる","タブ間を切り替えて各ターミナルの出力を確認できる","各ターミナルの出力が独立してスクロール・保持される"]},
+{id:"US-6.3",priority:"should",actor:"個人開発者",title:"ターミナルの出力をスクロールバックして過去の結果を確認したい。",criteria:["ターミナル出力のスクロールバックが十分な行数保持される","ターミナル出力内をテキスト検索できる"]},
+{id:"US-6.4",priority:"must",actor:"個人開発者",title:"稼働中のAIエージェント一覧とその状態を一目で確認したい。",criteria:["ダッシュボードに稼働中エージェントの一覧が表示される","各エージェントの状態が視覚的に表示される","各エージェントの現在の作業内容が要約表示される"]},
+{id:"US-6.5",priority:"should",actor:"個人開発者",title:"各AIエージェントの操作ログを時系列で閲覧したい。",criteria:["エージェントごとの操作ログを時系列で表示できる","ログにはタイムスタンプ、操作種別、対象ファイルパス、変更概要が含まれる","ログエントリから該当ファイルに遷移できる","全エージェント統合の時系列ビューも表示できる"]},
+{id:"US-6.6",priority:"must",actor:"個人開発者",title:"ダッシュボードからAIエージェントを起動・停止したい。",criteria:["ダッシュボードから新しいエージェントを起動できる","稼働中のエージェントを停止できる","エージェント起動時に作業内容やコンテキストを指定できる"]},
+{id:"US-6.7",priority:"must",actor:"個人開発者",title:"AIエージェントが編集したファイルの変更をリアルタイムで反映してほしい。",criteria:["外部プロセスによるファイル変更がファイルシステム監視で検出される","変更がエディタの表示に自動反映される","編集中のファイルが外部変更された場合に競合通知が表示される","どのエージェントによる変更かが識別できる"]},
+{id:"US-6.8",priority:"must",actor:"AIエージェント",title:"プロジェクトの構造情報を取得したい。",criteria:["ファイル構造をJSON等の構造化データとして取得できる","各ファイルのメタデータ（frontmatter、タグ、リンク）を取得できる"]},
+{id:"US-6.9",priority:"should",actor:"AIエージェント",title:"自身が行った操作のログを自動的に記録したい。",criteria:["AIエージェントによるファイル操作が操作ログに自動記録される","ログにはエージェント識別子、タイムスタンプ、操作種別が含まれる","操作ログはローカル専用ストレージに保存される"]},
+{id:"US-6.10",priority:"must",actor:"個人開発者",title:"すべてのファイル操作・Git操作・コマンド実行がシステムレベルで自動記録されてほしい。",criteria:["ファイルシステムWatcherにより全ファイル操作がリアルタイムで自動記録される","Git操作がフック経由で自動記録される","ターミナルのコマンドと出力が自動記録される","記録はエージェントの動作に一切依存しない","秘匿情報がパターンマッチで自動マスキングされる"]},
+{id:"US-6.11",priority:"must",actor:"個人開発者",title:"アンビエントエージェントが全作業エージェントを監視し、必須タスクの実行漏れを検出・通知してほしい。",criteria:["アンビエントエージェントがバックグラウンドで常時稼働する","各作業エージェントの必須タスクの完了を定期チェックする","必須タスクが未完了の場合、人間にアラート通知する","チェック項目を設定で定義できる","リトライ上限を設定可能"]},
+{id:"US-6.12",priority:"should",actor:"個人開発者",title:"アンビエントエージェントがセッションログの粒度を管理し、コンテンツ変換を統括してほしい。",criteria:["ログ粒度を設定で選択できる（詳細/標準/コンパクト）","生ログから構造化セッションログを自動生成する","日単位のデイリーサマリーを自動生成する","セッションログの品質を自動検証する","ブログ/SNS変換パイプラインの実行スケジュールを管理する"]},
+{id:"US-6.13",priority:"should",actor:"個人開発者",title:"APIコスト（トークン使用量）をダッシュボードで確認し、上限設定で高額請求を防ぎたい。",criteria:["エージェント別のトークン使用量と推定コストが表示される","日次/月次のコスト推移グラフが表示される","コスト上限を設定でき上限到達時にエージェントが自動停止する","上限接近時に警告通知が表示される"]},
+{id:"US-6.14",priority:"should",actor:"個人開発者",title:"操作ログが肥大化しないよう自動ローテーション・圧縮してほしい。",criteria:["ログの保持期間を設定できる","保持期間を過ぎた生ログが自動圧縮される","圧縮後一定期間経過した生ログが自動パージされる","ログストレージ使用量がダッシュボードに表示される"]},
+{id:"US-6.15",priority:"should",actor:"個人開発者",title:"AIエージェントのターミナル実行環境がサンドボックス化されてほしい。",criteria:["エージェント用ターミナルがVaultをルートとした制限環境で動作する","許可/禁止するコマンドのリストを設定できる","Vault外のファイルシステムへのアクセスが制限される","破壊的コマンドがブロックされる"]},
+{id:"US-6.16",priority:"should",actor:"個人開発者",title:"外部サービスの認証情報が安全に保管されてほしい。",criteria:["認証情報がOS標準のキーチェーンに暗号化保存される","認証情報がGitリポジトリに含まれない","認証情報の一覧管理画面で追加・更新・削除ができる","エージェントからのアクセスは最小限のスコープに制限される"]}
+]},
+{epic:"Epic 7: エージェントセッションログ",desc:"AIエージェントの作業記録を自動的にセッションログとして保存する。システムレベルでキャプチャされ、アンビエントエージェントが構造化する。",stories:[
+{id:"US-7.1",priority:"must",actor:"AIエージェント",title:"セッションの操作内容を構造化ログとして自動記録したい。",criteria:["セッション開始時にログファイルが自動作成される","編集ファイル、コミット内容、実行コマンド、作業の意図がログに含まれる","ログはマークダウン形式で保存される","セッション終了時にログが自動クローズされる"]},
+{id:"US-7.2",priority:"must",actor:"AIエージェント",title:"日単位で全セッションの作業サマリーを自動生成したい。",criteria:["日付ベースのデイリーログファイルが自動生成される","その日の全エージェントのセッションが統合される","主要な変更内容・作成ファイル・コミット等のサマリーが含まれる"]},
+{id:"US-7.3",priority:"must",actor:"個人開発者",title:"セッションログを日付・エージェント別に一覧表示して閲覧したい。",criteria:["セッションログの一覧が日付順で表示される","エージェント名でフィルタリングできる","ログを選択するとマークダウンとしてエディタで閲覧できる"]},
+{id:"US-7.4",priority:"should",actor:"個人開発者",title:"セッションログ内から参照ファイルやコミットに直接遷移したい。",criteria:["ログ内のファイルパスがクリック可能なリンクとして表示される","リンクをクリックすると該当ファイルが開かれる","コミットハッシュからGit差分表示に遷移できる"]},
+{id:"US-7.5",priority:"should",actor:"個人開発者",title:"セッションログの保存先フォルダとフォーマットをカスタマイズしたい。",criteria:["設定画面でログの保存先フォルダを指定できる","ファイル名フォーマットを設定できる"]}
+]},
+{epic:"Epic 8: ブログ公開パイプライン",desc:"セッションログやナレッジからブログ記事の下書きを自動生成し、人間のレビュー後にワンクリックでZenn/Noteに公開する。",stories:[
+{id:"US-8.1",priority:"should",actor:"個人開発者",title:"セッションログから技術ブログ記事の下書きをAIに自動生成させたい。",criteria:["セッションログを選択してブログ下書き生成を実行できる","AIが読者向けの文体・構成に変換する","タイトル、導入、本文、まとめの構成が自動生成される","下書きが新規マークダウンファイルとして保存される"]},
+{id:"US-8.2",priority:"should",actor:"個人開発者",title:"生成されたブログ下書きをレビュー・修正したい。",criteria:["下書きがLive Previewエディタで開かれ編集できる","下書きの状態（未レビュー/レビュー済み/公開済み）が管理される"]},
+{id:"US-8.3",priority:"should",actor:"個人開発者",title:"内部リンク [[]] 等のTechtite固有記法がブログ公開時に自動変換されてほしい。",criteria:["内部リンクが標準マークダウンリンクに変換される","Techtite固有記法が除去または標準形式に変換される","変換は公開時に自動実行され元ファイルは変更されない"]},
+{id:"US-8.4",priority:"should",actor:"個人開発者",title:"レビュー済みブログ記事をワンクリックでZennに公開したい。",criteria:["Zenn CLIまたはAPIの認証設定ができる","ワンクリックでZennに記事を公開できる","Zennのfrontmatterが自動生成される","公開成功・失敗のフィードバックが表示される"]},
+{id:"US-8.5",priority:"could",actor:"個人開発者",title:"レビュー済みブログ記事をワンクリックでNoteに公開したい。",criteria:["Note APIの認証設定ができる","ワンクリックでNoteに記事を公開できる","公開成功・失敗のフィードバックが表示される"]}
+]},
+{epic:"Epic 9: SNS連携",desc:"セッションログやナレッジからコンパクトな要約を生成し、X/Threadsに高頻度で投稿する。ブログ公開のコンパクト・高頻度版。",stories:[
+{id:"US-9.1",priority:"should",actor:"個人開発者",title:"セッションログからSNS投稿用のコンパクトな要約をAIに自動生成させたい。",criteria:["セッションログを選択して要約生成を実行できる","AIがSNSに適したコンパクトな投稿文に変換する","プラットフォームの文字数制限内に収まる","要約をレビュー・編集してから投稿できる"]},
+{id:"US-9.2",priority:"should",actor:"個人開発者",title:"レビュー済みの要約をワンクリックでXに投稿したい。",criteria:["X APIの認証設定ができる（OAuth）","ワンクリックでXに投稿できる","投稿成功・失敗のフィードバックが表示される"]},
+{id:"US-9.3",priority:"could",actor:"個人開発者",title:"レビュー済みの要約をワンクリックでThreadsに投稿したい。",criteria:["Threads APIの認証設定ができる","ワンクリックでThreadsに投稿できる","投稿成功・失敗のフィードバックが表示される"]},
+{id:"US-9.4",priority:"could",actor:"個人開発者",title:"SNS投稿のテンプレートをカスタマイズしたい。",criteria:["投稿テンプレートを設定画面で編集できる","テンプレートにハッシュタグ等の変数を使用できる","プラットフォームごとに異なるテンプレートを設定できる"]}
+]}
+];
+
+const activeFilters={must:true,should:true,could:true,wont:true};
+const epicOpen={};
+
+function init(){
+  DATA.forEach((_,i)=>epicOpen[i]=true);
+  renderSidebar();renderMain();updateStats();
+}
+
+function toggleFilter(el){
+  const p=el.dataset.priority;
+  activeFilters[p]=!activeFilters[p];
+  el.classList.toggle('active');
+  applyFilters();
+}
+
+function applyFilters(){
+  document.querySelectorAll('.story-card').forEach(c=>{
+    c.classList.toggle('hidden',!activeFilters[c.dataset.priority]);
+  });
+  document.querySelectorAll('.nav-us li').forEach(li=>{
+    li.classList.toggle('hidden',!activeFilters[li.dataset.priority]);
+  });
+  updateStats();
+}
+
+function updateStats(){
+  let c={must:0,should:0,could:0,wont:0};
+  DATA.forEach(e=>e.stories.forEach(s=>c[s.priority]++));
+  document.getElementById('statMust').textContent=c.must;
+  document.getElementById('statShould').textContent=c.should;
+  document.getElementById('statCould').textContent=c.could;
+  document.getElementById('statWont').textContent=c.wont;
+}
+
+function renderSidebar(){
+  const nav=document.getElementById('sidebarNav');
+  nav.innerHTML=DATA.map((epic,ei)=>{
+    const items=epic.stories.map(s=>
+      '<li data-id="'+s.id+'" data-priority="'+s.priority+'" onclick="scrollToStory(\''+s.id+'\')">'+s.id+' '+s.title.substring(0,28)+'...</li>'
+    ).join('');
+    return '<div class="nav-epic"><div class="nav-epic-title" onclick="toggleEpic('+ei+')"><span class="arrow open" id="arrow-'+ei+'">&#9654;</span>Epic '+(ei+1)+'</div><ul class="nav-us" id="epic-nav-'+ei+'">'+items+'</ul></div>';
+  }).join('');
+}
+
+function toggleEpic(i){
+  epicOpen[i]=!epicOpen[i];
+  const ul=document.getElementById('epic-nav-'+i);
+  const arrow=document.getElementById('arrow-'+i);
+  ul.style.display=epicOpen[i]?'':'none';
+  arrow.classList.toggle('open',epicOpen[i]);
+}
+
+function scrollToStory(id){
+  const el=document.getElementById(id);
+  if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.style.borderColor='#c9a0ff';setTimeout(()=>el.style.borderColor='',1500);}
+  document.querySelectorAll('.nav-us li').forEach(li=>li.classList.remove('active'));
+  const t=document.querySelector('.nav-us li[data-id="'+id+'"]');
+  if(t)t.classList.add('active');
+}
+
+function renderMain(){
+  const main=document.getElementById('mainContent');
+  let c={must:0,should:0,could:0,wont:0};
+  let totalCriteria=0;
+  DATA.forEach(e=>e.stories.forEach(s=>{c[s.priority]++;totalCriteria+=s.criteria.length;}));
+  const total=c.must+c.should+c.could+c.wont;
+
+  let html='<div class="summary">';
+  html+='<div class="summary-card must"><div class="num">'+c.must+'</div><div class="lbl">Must (MVP必須)</div></div>';
+  html+='<div class="summary-card should"><div class="num">'+c.should+'</div><div class="lbl">Should</div></div>';
+  html+='<div class="summary-card could"><div class="num">'+c.could+'</div><div class="lbl">Could</div></div>';
+  html+='<div class="summary-card wont"><div class="num">'+c.wont+'</div><div class="lbl">Won\'t (スコープ外)</div></div>';
+  html+='</div>';
+  html+='<p style="font-size:13px;color:#8b8fa3;margin-bottom:32px;">合計 <b style="color:#e1e4e8">'+total+'</b> ストーリー / <b style="color:#e1e4e8">'+totalCriteria+'</b> 受け入れ基準 / <b style="color:#e1e4e8">9</b> Epic</p>';
+
+  DATA.forEach((epic,ei)=>{
+    html+='<div class="epic-section" id="epic-section-'+ei+'"><div class="epic-title">'+epic.epic+'</div><div class="epic-desc">'+epic.desc+'</div>';
+    epic.stories.forEach(s=>{
+      const bl={must:'badge-must',should:'badge-should',could:'badge-could',wont:'badge-wont'}[s.priority];
+      const pl={must:'Must',should:'Should',could:'Could',wont:"Won't"}[s.priority];
+      const cl=s.criteria.map(c=>'<li><input type="checkbox"><span>'+c+'</span></li>').join('');
+      html+='<div class="story-card" id="'+s.id+'" data-priority="'+s.priority+'">';
+      html+='<div class="story-head"><span class="story-id">'+s.id+'</span><span class="story-title">'+s.title+'</span><span class="badge '+bl+'">'+pl+'</span></div>';
+      html+='<div class="story-actor">アクター: <strong>'+s.actor+'</strong></div>';
+      html+='<div class="criteria-title">受け入れ基準:</div>';
+      html+='<ul class="criteria-list">'+cl+'</ul></div>';
+    });
+    html+='</div>';
+  });
+  main.innerHTML=html;
+}
+
+init();
+</script>
+</body>
+</html>
