@@ -120,7 +120,12 @@ html, body, #root {
   border-radius: 3px;
   padding: 1px 4px;
 }
-/* Blockquote / Callout styling */
+/* Blockquote / Callout — continuous left border via line decoration */
+.cm-editor .cm-blockquote-line {
+  box-shadow: inset 3px 0 0 0 var(--color-accent) !important;
+  padding-left: 16px !important;
+  background-color: rgba(137, 180, 250, 0.04) !important;
+}
 .cm-editor .tok-quote {
   color: var(--color-text-secondary) !important;
 }
