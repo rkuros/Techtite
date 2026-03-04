@@ -33,11 +33,15 @@ pub fn get_current(state: State<'_, AppState>) -> Result<Option<Vault>, String> 
 }
 
 #[tauri::command]
-pub async fn select_folder() -> Result<Option<String>, String> {
-    // Use native dialog via tauri-plugin-dialog
-    // In actual implementation this would use the dialog plugin
-    // For now return None as placeholder - actual dialog integration depends on runtime
-    Ok(None)
+pub async fn select_folder(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let folder = app_handle
+        .dialog()
+        .file()
+        .blocking_pick_folder();
+
+    Ok(folder.map(|p| p.to_string()))
 }
 
 #[tauri::command]

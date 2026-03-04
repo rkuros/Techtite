@@ -1,16 +1,44 @@
+import { useEffect } from "react";
 import {
   Panel,
   PanelGroup,
   PanelResizeHandle,
 } from "react-resizable-panels";
-import { useEditorStore } from "@/stores/editor-store";
+import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store";
+import { useVaultStore } from "@/stores/vault-store";
+import { SIDEBAR_PANELS } from "@/shared/constants";
 import { Ribbon } from "./Ribbon";
 import { TabBar } from "./TabBar";
 import { PaneContainer } from "./PaneContainer";
 import { StatusBar } from "./StatusBar";
+import { WelcomeScreen } from "./WelcomeScreen";
+
+// Lazy-loaded sidebar panels (actual components from each Unit)
+import { FileExplorer } from "@/features/file-management";
+import { SearchPanel } from "@/features/knowledge";
+import { GitPanel } from "@/features/git";
 
 export function AppLayout() {
+  const currentVault = useVaultStore((s) => s.currentVault);
   const activeSidebarPanel = useEditorStore((s) => s.activeSidebarPanel);
+
+  // Initialize editor event listeners once on mount
+  useEffect(() => {
+    const cleanup = initEditorEventListeners();
+    return cleanup;
+  }, []);
+
+  // Show welcome screen when no vault is open
+  if (!currentVault) {
+    return (
+      <div
+        className="h-screen w-screen"
+        style={{ backgroundColor: "var(--color-bg-primary)" }}
+      >
+        <WelcomeScreen />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
@@ -36,8 +64,7 @@ export function AppLayout() {
                 >
                   {activeSidebarPanel}
                 </div>
-                {/* Sidebar panel content — each Unit provides its panel component */}
-                <SidebarPlaceholder panel={activeSidebarPanel} />
+                <SidebarContent panel={activeSidebarPanel} />
               </div>
             </div>
           </Panel>
@@ -63,7 +90,6 @@ export function AppLayout() {
                 borderLeft: "1px solid var(--color-border-subtle)",
               }}
             >
-              {/* Unit 7: TerminalPanel will be rendered here */}
               <div
                 className="flex items-center justify-center h-full text-xs"
                 style={{ color: "var(--color-text-muted)" }}
@@ -81,17 +107,28 @@ export function AppLayout() {
   );
 }
 
+/** Render the active sidebar panel component. */
+function SidebarContent({ panel }: { panel: string }) {
+  switch (panel) {
+    case SIDEBAR_PANELS.FILES:
+      return <FileExplorer />;
+    case SIDEBAR_PANELS.SEARCH:
+      return <SearchPanel />;
+    case SIDEBAR_PANELS.GIT:
+      return <GitPanel />;
+    default:
+      return <SidebarPlaceholder panel={panel} />;
+  }
+}
+
 function SidebarPlaceholder({ panel }: { panel: string }) {
-  const placeholders: Record<string, string> = {
-    files: "File Explorer (Unit 3)",
-    search: "Search Panel (Unit 4/5)",
-    backlinks: "Backlinks (Unit 4)",
-    tags: "Tags (Unit 4)",
-    graph: "Graph View (Unit 4)",
-    git: "Git Panel (Unit 6)",
-    agents: "Agents Dashboard (Unit 7)",
-    logs: "Logs Panel (Unit 8)",
-    publish: "Publish Panel (Unit 10)",
+  const labels: Record<string, string> = {
+    backlinks: "Backlinks",
+    tags: "Tags",
+    graph: "Graph View",
+    agents: "Agents Dashboard",
+    logs: "Logs",
+    publish: "Publish",
     settings: "Settings",
   };
 
@@ -103,7 +140,7 @@ function SidebarPlaceholder({ panel }: { panel: string }) {
         color: "var(--color-text-muted)",
       }}
     >
-      {placeholders[panel] ?? panel}
+      {labels[panel] ?? panel}
     </div>
   );
 }
