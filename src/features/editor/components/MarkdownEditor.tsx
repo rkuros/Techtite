@@ -1,64 +1,9 @@
 import { useCallback, useEffect, useRef } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-import { languages } from "@codemirror/language-data";
+import { hybridMarkdown, toggleHybridMode, setMode } from "codemirror-markdown-hybrid";
 import { EditorView, keymap } from "@codemirror/view";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
-import { livePreviewExtension } from "../extensions/live-preview";
-
-// ---------------------------------------------------------------------------
-// Techtite dark theme for CodeMirror
-// ---------------------------------------------------------------------------
-const techtiteDarkTheme = EditorView.theme(
-  {
-    "&": {
-      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
-      color: "var(--color-text-primary, #e5e5ea)",
-      fontSize: "14px",
-      fontFamily:
-        "var(--font-mono, 'SF Mono', Monaco, Menlo, Consolas, monospace)",
-    },
-    ".cm-content": {
-      padding: "32px 60px",
-      caretColor: "var(--color-accent, #8b7ef0)",
-    },
-    ".cm-cursor": {
-      borderLeftColor: "var(--color-accent, #8b7ef0)",
-    },
-    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-      backgroundColor: "rgba(139, 126, 240, 0.2)",
-    },
-    ".cm-gutters": {
-      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
-      color: "var(--color-text-muted, #8e8e93)",
-      border: "none",
-    },
-    ".cm-activeLine": {
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-    },
-    ".cm-activeLineGutter": {
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-    },
-    // Markdown heading styles
-    ".cm-header-1": {
-      fontSize: "1.6em",
-      fontWeight: "700",
-      color: "var(--color-accent, #8b7ef0)",
-    },
-    ".cm-header-2": {
-      fontSize: "1.4em",
-      fontWeight: "600",
-      color: "var(--color-accent, #8b7ef0)",
-    },
-    ".cm-header-3": {
-      fontSize: "1.2em",
-      fontWeight: "600",
-      color: "var(--color-accent, #8b7ef0)",
-    },
-  },
-  { dark: true }
-);
 
 // ---------------------------------------------------------------------------
 // Ctrl/Cmd+S save keymap
@@ -120,17 +65,22 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
 
   const isSourceMode = tab.viewMode === "source";
 
-  // Build extensions based on view mode
-  const extensions = [
-    markdown({
-      base: markdownLanguage,
-      codeLanguages: languages,
-    }),
-    EditorView.lineWrapping,
-    makeSaveKeymap(tab.filePath),
-    // Only add live preview decorations in Live Preview mode
-    ...(!isSourceMode ? [livePreviewExtension()] : []),
-  ];
+  // Sync hybrid mode with view mode toggle
+  useEffect(() => {
+    const view = cmRef.current?.view;
+    if (view) {
+      setMode(view, isSourceMode ? "raw" : "hybrid");
+    }
+  }, [isSourceMode]);
+
+  const handleToggleMode = useCallback(() => {
+    const view = cmRef.current?.view;
+    if (view) {
+      toggleHybridMode(view);
+      const newMode = isSourceMode ? "livePreview" : "source";
+      useEditorStore.getState().setViewMode(tab.id, newMode);
+    }
+  }, [isSourceMode, tab.id]);
 
   return (
     <div className="flex flex-col h-full w-full">
@@ -143,8 +93,7 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
               : "text-[var(--color-text-muted,#8e8e93)] cursor-pointer hover:text-[var(--color-text-primary,#e5e5ea)]"
           }
           onClick={() => {
-            if (isSourceMode)
-              useEditorStore.getState().setViewMode(tab.id, "livePreview");
+            if (isSourceMode) handleToggleMode();
           }}
         >
           Live Preview
@@ -157,22 +106,29 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
               : "text-[var(--color-text-muted,#8e8e93)] cursor-pointer hover:text-[var(--color-text-primary,#e5e5ea)]"
           }
           onClick={() => {
-            if (!isSourceMode)
-              useEditorStore.getState().setViewMode(tab.id, "source");
+            if (!isSourceMode) handleToggleMode();
           }}
         >
           Source
         </span>
       </div>
 
-      {/* CodeMirror 6 editor */}
+      {/* CodeMirror 6 editor with hybrid markdown */}
       <div className="flex-1 overflow-auto">
         <CodeMirror
           ref={cmRef}
           value={initialContent}
           height="100%"
-          theme={techtiteDarkTheme}
-          extensions={extensions}
+          extensions={[
+            hybridMarkdown({
+              theme: "dark",
+              enablePreview: !isSourceMode,
+              enableKeymap: true,
+              enableCollapse: true,
+            }),
+            EditorView.lineWrapping,
+            makeSaveKeymap(tab.filePath),
+          ]}
           onChange={handleChange}
           basicSetup={{
             lineNumbers: false,
