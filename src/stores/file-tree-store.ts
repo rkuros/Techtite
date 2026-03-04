@@ -139,7 +139,7 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
     set({ isLoading: true });
 
     try {
-      const tree = await invokeCommand<FileEntry>("file_tree:get_tree", {
+      const tree = await invokeCommand<FileEntry>("get_tree", {
         includeIgnored: false,
       });
 
@@ -165,7 +165,7 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
 
     _refreshDebounceTimer = setTimeout(async () => {
       try {
-        const tree = await invokeCommand<FileEntry>("file_tree:get_tree", {
+        const tree = await invokeCommand<FileEntry>("get_tree", {
           includeIgnored: false,
         });
 
@@ -218,18 +218,18 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
 
   createFile: async (dirPath: string, fileName: string, content?: string) => {
     const filePath = joinPath(dirPath, fileName);
-    await invokeCommand("fs:create_file", { path: filePath, content });
+    await invokeCommand("create_file", { path: filePath, content });
     await get().refreshTree();
   },
 
   createDir: async (dirPath: string, dirName: string) => {
     const newDirPath = joinPath(dirPath, dirName);
-    await invokeCommand("fs:create_dir", { path: newDirPath });
+    await invokeCommand("create_dir", { path: newDirPath });
     await get().refreshTree();
   },
 
   deleteNode: async (path: string) => {
-    await invokeCommand("fs:delete", { path });
+    await invokeCommand("delete", { path });
     await get().refreshTree();
   },
 
@@ -238,12 +238,12 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
     const newPath = joinPath(parentDir, newName);
 
     // Check if target already exists
-    const exists = await invokeCommand<boolean>("fs:exists", { path: newPath });
+    const exists = await invokeCommand<boolean>("exists", { path: newPath });
     if (exists) {
       throw new Error(`A file or folder named "${newName}" already exists`);
     }
 
-    await invokeCommand("fs:rename", { oldPath, newPath });
+    await invokeCommand("rename", { oldPath, newPath });
 
     // TODO: [Unit 4 Weak Dependency] Auto-update internal [[links]] that reference the old path.
     // When Unit 4 (knowledge base) is implemented, call knowledge:get_backlinks here
@@ -257,12 +257,12 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
     const newPath = joinPath(targetDirPath, fileName);
 
     // Check if target already exists
-    const exists = await invokeCommand<boolean>("fs:exists", { path: newPath });
+    const exists = await invokeCommand<boolean>("exists", { path: newPath });
     if (exists) {
       throw new Error(`A file or folder named "${fileName}" already exists in the target directory`);
     }
 
-    await invokeCommand("fs:rename", { oldPath: sourcePath, newPath });
+    await invokeCommand("rename", { oldPath: sourcePath, newPath });
 
     // TODO: [Unit 4 Weak Dependency] Auto-update internal [[links]] after file move.
     // Same as renameNode — use knowledge:get_backlinks to update references.
