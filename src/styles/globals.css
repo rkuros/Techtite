@@ -120,31 +120,35 @@ html, body, #root {
   border-radius: 3px;
   padding: 1px 4px;
 }
-/* Blockquote / Callout — continuous left border across wrapped lines */
-.cm-editor .cm-line .tok-quote,
-.cm-editor .cm-blockquote-line,
-.cm-editor .cm-line:has(.tok-quote) {
-  border-left: 3px solid var(--color-accent) !important;
-  padding-left: 12px !important;
-  margin-left: 0 !important;
+/* Blockquote / Callout — continuous left border using box-shadow (no line gaps) */
+.cm-editor .cm-line:has(.tok-quote),
+.cm-editor .cm-line:has([class*="quote"]),
+.cm-editor .cm-line:has(.cm-quote) {
+  box-shadow: inset 3px 0 0 0 var(--color-accent) !important;
+  padding-left: 16px !important;
+  background-color: rgba(137, 180, 250, 0.04) !important;
   color: var(--color-text-secondary) !important;
-  background-color: rgba(137, 180, 250, 0.04) !important;
+  /* Eliminate gaps between consecutive blockquote lines */
+  padding-top: 1px !important;
+  padding-bottom: 1px !important;
+  margin-top: -1px !important;
+  margin-bottom: 0 !important;
 }
-/* codemirror-markdown-hybrid blockquote rendered view */
-.cm-editor .cm-quote,
-.cm-editor .cm-blockquote,
-.cm-editor [class*="blockquote"],
-.cm-editor [class*="quote-line"] {
-  border-left: 3px solid var(--color-accent) !important;
-  padding-left: 12px !important;
-  background-color: rgba(137, 180, 250, 0.04) !important;
+/* First blockquote line — restore top spacing */
+.cm-editor .cm-line:has(.tok-quote):first-child,
+.cm-editor .cm-line:not(:has(.tok-quote)) + .cm-line:has(.tok-quote) {
+  margin-top: 0 !important;
+  padding-top: 4px !important;
+  border-radius: 4px 4px 0 0;
 }
-/* Ensure consecutive blockquote lines have no gap in the border */
-.cm-editor .cm-line + .cm-line {
-  /* Lines are flush — border appears continuous by default */
+/* Last blockquote line before a non-quote line */
+.cm-editor .cm-line:has(.tok-quote):has(+ .cm-line:not(:has(.tok-quote))),
+.cm-editor .cm-line:has(.tok-quote):last-child {
+  padding-bottom: 4px !important;
+  border-radius: 0 0 4px 4px;
 }
 /* Callout type label (e.g. [!example]) */
-.cm-editor .cm-line .tok-keyword {
+.cm-editor .tok-keyword {
   color: #f9e2af !important;
   font-weight: 600;
 }
