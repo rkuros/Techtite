@@ -1,13 +1,11 @@
 //! Git operations service using git2 (libgit2 bindings).
-//!
-//! NOTE: git2 is not yet in Cargo.toml. All functions currently return
-//! stub/mock data. Once git2 is added as a dependency, replace stubs
-//! with real implementations following the patterns shown in comments.
 
 use std::path::Path;
 
+use git2::{DiffOptions, Repository, Sort, StatusOptions};
+
 use crate::models::git::{
-    BranchInfo, CommitInfo, DiffHunk, GitStatus,
+    BranchInfo, CommitInfo, DiffHunk, DiffLine, DiffLineType, FileChange, GitFileStatus, GitStatus,
 };
 use crate::utils::error::TechtiteError;
 
@@ -15,10 +13,20 @@ use crate::utils::error::TechtiteError;
 // Repository discovery
 // ---------------------------------------------------------------------------
 
-/// Check whether a `.git` directory exists under the given vault path.
-/// When git2 is available, use `Repository::discover(vault_path)`.
+/// Open the git repository at (or above) the given vault path.
+fn open_repo(vault_path: &Path) -> Result<Repository, TechtiteError> {
+    Repository::discover(vault_path).map_err(|e| {
+        if e.code() == git2::ErrorCode::NotFound {
+            TechtiteError::Other("Not a git repository".to_string())
+        } else {
+            TechtiteError::Git(e)
+        }
+    })
+}
+
+/// Check whether a git repository can be discovered under the given vault path.
 pub fn is_git_repo(vault_path: &Path) -> bool {
-    vault_path.join(".git").is_dir()
+    Repository::discover(vault_path).is_ok()
 }
 
 // ---------------------------------------------------------------------------
@@ -26,27 +34,96 @@ pub fn is_git_repo(vault_path: &Path) -> bool {
 // ---------------------------------------------------------------------------
 
 /// Retrieve the current git status (staged, unstaged, untracked).
-///
-/// Stub: returns a default empty status with branch "main".
-/// Real impl: open repo via `git2::Repository::discover`, then call
-/// `repo.statuses()` with `StatusOptions` to classify files.
 pub fn get_status(vault_path: &Path) -> Result<GitStatus, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other(
-            "Not a git repository".to_string(),
-        ));
+    let repo = open_repo(vault_path)?;
+
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .include_ignored(false);
+
+    let statuses = repo.statuses(Some(&mut opts))?;
+
+    let mut staged = Vec::new();
+    let mut unstaged = Vec::new();
+    let mut untracked = Vec::new();
+
+    for entry in statuses.iter() {
+        let path = entry.path().unwrap_or("").to_string();
+        let s = entry.status();
+
+        // Staged changes (index vs HEAD)
+        if s.intersects(
+            git2::Status::INDEX_NEW
+                | git2::Status::INDEX_MODIFIED
+                | git2::Status::INDEX_DELETED
+                | git2::Status::INDEX_RENAMED,
+        ) {
+            let status = if s.contains(git2::Status::INDEX_NEW) {
+                GitFileStatus::Added
+            } else if s.contains(git2::Status::INDEX_MODIFIED) {
+                GitFileStatus::Modified
+            } else if s.contains(git2::Status::INDEX_DELETED) {
+                GitFileStatus::Deleted
+            } else if s.contains(git2::Status::INDEX_RENAMED) {
+                GitFileStatus::Renamed
+            } else {
+                GitFileStatus::Modified
+            };
+            staged.push(FileChange {
+                path: path.clone(),
+                status,
+            });
+        }
+
+        // Unstaged changes (workdir vs index)
+        if s.intersects(
+            git2::Status::WT_MODIFIED | git2::Status::WT_DELETED | git2::Status::WT_RENAMED,
+        ) {
+            let status = if s.contains(git2::Status::WT_MODIFIED) {
+                GitFileStatus::Modified
+            } else if s.contains(git2::Status::WT_DELETED) {
+                GitFileStatus::Deleted
+            } else if s.contains(git2::Status::WT_RENAMED) {
+                GitFileStatus::Renamed
+            } else {
+                GitFileStatus::Modified
+            };
+            unstaged.push(FileChange {
+                path: path.clone(),
+                status,
+            });
+        }
+
+        // Untracked
+        if s.contains(git2::Status::WT_NEW) {
+            untracked.push(path.clone());
+        }
+
+        // Conflicted
+        if s.contains(git2::Status::CONFLICTED) {
+            unstaged.push(FileChange {
+                path,
+                status: GitFileStatus::Conflicted,
+            });
+        }
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let statuses = repo.statuses(Some(
-    //     git2::StatusOptions::new()
-    //         .include_untracked(true)
-    //         .recurse_untracked_dirs(true)
-    // ))?;
-    // Classify into staged / unstaged / untracked ...
+    // Current branch name
+    let branch = match repo.head() {
+        Ok(head) => head.shorthand().unwrap_or("HEAD").to_string(),
+        Err(_) => "HEAD (no commits)".to_string(),
+    };
 
-    Ok(GitStatus::default())
+    let is_clean = staged.is_empty() && unstaged.is_empty() && untracked.is_empty();
+
+    Ok(GitStatus {
+        branch,
+        is_clean,
+        staged,
+        unstaged,
+        untracked,
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -54,59 +131,57 @@ pub fn get_status(vault_path: &Path) -> Result<GitStatus, TechtiteError> {
 // ---------------------------------------------------------------------------
 
 /// Stage specified files (add to index).
-///
-/// Stub: no-op.
-/// Real impl: `repo.index()?.add_path(path); index.write();`
 pub fn stage(vault_path: &Path, paths: &[String]) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+    let mut index = repo.index()?;
+
+    for p in paths {
+        let file_path = Path::new(p);
+        let full_path = repo
+            .workdir()
+            .ok_or_else(|| TechtiteError::Other("Bare repository".to_string()))?
+            .join(file_path);
+        if full_path.exists() {
+            index.add_path(file_path)?;
+        } else {
+            index.remove_path(file_path)?;
+        }
     }
-
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let mut index = repo.index()?;
-    // for p in paths {
-    //     index.add_path(std::path::Path::new(p))?;
-    // }
-    // index.write()?;
-
-    let _ = paths;
+    index.write()?;
     Ok(())
 }
 
 /// Stage all changed files in the working directory.
-///
-/// Stub: no-op.
-/// Real impl: `repo.index()?.add_all(["*"], ADD_DEFAULT, None)?;`
 pub fn stage_all(vault_path: &Path) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let mut index = repo.index()?;
-    // index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
-    // index.write()?;
-
+    let repo = open_repo(vault_path)?;
+    let mut index = repo.index()?;
+    index.add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)?;
+    index.update_all(["*"].iter(), None)?;
+    index.write()?;
     Ok(())
 }
 
 /// Unstage specified files (reset index entries to HEAD).
-///
-/// Stub: no-op.
-/// Real impl: reset index entries from HEAD tree for the given paths.
 pub fn unstage(vault_path: &Path, paths: &[String]) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+
+    match repo.head() {
+        Ok(head) => {
+            let head_commit = head.peel_to_commit()?;
+            let head_tree = head_commit.tree()?;
+            let pathspecs: Vec<&str> = paths.iter().map(|s| s.as_str()).collect();
+            repo.reset_default(Some(head_tree.as_object()), pathspecs)?;
+        }
+        Err(_) => {
+            // No commits yet — remove from index entirely
+            let mut index = repo.index()?;
+            for p in paths {
+                index.remove_path(Path::new(p))?;
+            }
+            index.write()?;
+        }
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let head = repo.head()?.peel_to_tree()?;
-    // repo.reset_default(Some(&head.into_object()), paths)?;
-
-    let _ = paths;
     Ok(())
 }
 
@@ -115,27 +190,25 @@ pub fn unstage(vault_path: &Path, paths: &[String]) -> Result<(), TechtiteError>
 // ---------------------------------------------------------------------------
 
 /// Create a commit from the current index.
-///
-/// Stub: returns a fake commit hash.
-/// Real impl: build tree from index, create commit with signature.
 pub fn create_commit(vault_path: &Path, message: &str) -> Result<String, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
+    let repo = open_repo(vault_path)?;
+    let sig = repo.signature()?;
+    let mut index = repo.index()?;
+    let tree_id = index.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let sig = repo.signature()?;
-    // let mut index = repo.index()?;
-    // let tree_id = index.write_tree()?;
-    // let tree = repo.find_tree(tree_id)?;
-    // let parent = repo.head()?.peel_to_commit()?;
-    // let oid = repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])?;
-    // Ok(oid.to_string())
+    let oid = match repo.head() {
+        Ok(head) => {
+            let parent = head.peel_to_commit()?;
+            repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[&parent])?
+        }
+        Err(_) => {
+            // Initial commit (no parent)
+            repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &[])?
+        }
+    };
 
-    let _ = message;
-    let fake_hash = format!("{:0>40}", uuid::Uuid::new_v4().simple().to_string());
-    Ok(fake_hash)
+    Ok(oid.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -143,53 +216,104 @@ pub fn create_commit(vault_path: &Path, message: &str) -> Result<String, Techtit
 // ---------------------------------------------------------------------------
 
 /// Get diff hunks, optionally filtered to a specific file.
-///
-/// Stub: returns empty diff.
-/// Real impl: use `repo.diff_tree_to_index` (staged) or
-/// `repo.diff_index_to_workdir` (unstaged).
 pub fn get_diff(
     vault_path: &Path,
     path: Option<&str>,
     staged: bool,
 ) -> Result<Vec<DiffHunk>, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+
+    let mut diff_opts = DiffOptions::new();
+    if let Some(p) = path {
+        diff_opts.pathspec(p);
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let diff = if staged {
-    //     let head_tree = repo.head()?.peel_to_tree()?;
-    //     repo.diff_tree_to_index(Some(&head_tree), None, None)?
-    // } else {
-    //     repo.diff_index_to_workdir(None, None)?
-    // };
-    // Convert diff to Vec<DiffHunk>...
+    let diff = if staged {
+        let head_tree = match repo.head() {
+            Ok(head) => Some(head.peel_to_tree()?),
+            Err(_) => None,
+        };
+        repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut diff_opts))?
+    } else {
+        repo.diff_index_to_workdir(None, Some(&mut diff_opts))?
+    };
 
-    let _ = (path, staged);
-    Ok(Vec::new())
+    collect_diff_hunks(&diff)
 }
 
 /// Get diff hunks for a specific commit.
-///
-/// Stub: returns empty diff.
-/// Real impl: find commit by hash, diff commit tree against parent tree.
 pub fn get_commit_diff(vault_path: &Path, hash: &str) -> Result<Vec<DiffHunk>, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
+    let repo = open_repo(vault_path)?;
+    let oid = git2::Oid::from_str(hash)
+        .map_err(|_| TechtiteError::Other(format!("Invalid commit hash: {}", hash)))?;
+    let commit = repo.find_commit(oid)?;
+    let tree = commit.tree()?;
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let oid = git2::Oid::from_str(hash)?;
-    // let commit = repo.find_commit(oid)?;
-    // let tree = commit.tree()?;
-    // let parent_tree = commit.parent(0)?.tree()?;
-    // let diff = repo.diff_tree_to_tree(Some(&parent_tree), Some(&tree), None)?;
-    // Convert diff to Vec<DiffHunk>...
+    let parent_tree = if commit.parent_count() > 0 {
+        Some(commit.parent(0)?.tree()?)
+    } else {
+        None
+    };
 
-    let _ = hash;
-    Ok(Vec::new())
+    let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+    collect_diff_hunks(&diff)
+}
+
+/// Convert a git2 Diff into our DiffHunk model.
+fn collect_diff_hunks(diff: &git2::Diff) -> Result<Vec<DiffHunk>, TechtiteError> {
+    let mut hunks: Vec<DiffHunk> = Vec::new();
+
+    diff.print(git2::DiffFormat::Patch, |delta, hunk, line| {
+        let file_path = delta
+            .new_file()
+            .path()
+            .or_else(|| delta.old_file().path())
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
+        if let Some(ref hunk_header) = hunk {
+            let need_new = hunks.last().map_or(true, |last| {
+                last.file_path != file_path
+                    || last.old_start != hunk_header.old_start()
+                    || last.new_start != hunk_header.new_start()
+            });
+
+            if need_new {
+                hunks.push(DiffHunk {
+                    file_path: file_path.clone(),
+                    old_start: hunk_header.old_start(),
+                    old_lines: hunk_header.old_lines(),
+                    new_start: hunk_header.new_start(),
+                    new_lines: hunk_header.new_lines(),
+                    lines: Vec::new(),
+                });
+            }
+        } else if hunks.is_empty() {
+            return true;
+        }
+
+        if hunk.is_some() {
+            let line_type = match line.origin() {
+                '+' => DiffLineType::Addition,
+                '-' => DiffLineType::Deletion,
+                _ => DiffLineType::Context,
+            };
+
+            let content = String::from_utf8_lossy(line.content()).to_string();
+            let content = content.trim_end_matches('\n').to_string();
+
+            if let Some(last_hunk) = hunks.last_mut() {
+                last_hunk.lines.push(DiffLine {
+                    line_type,
+                    content,
+                });
+            }
+        }
+
+        true
+    })?;
+
+    Ok(hunks)
 }
 
 // ---------------------------------------------------------------------------
@@ -197,146 +321,196 @@ pub fn get_commit_diff(vault_path: &Path, hash: &str) -> Result<Vec<DiffHunk>, T
 // ---------------------------------------------------------------------------
 
 /// Get commit history.
-///
-/// Stub: returns empty history.
-/// Real impl: walk revisions with `repo.revwalk()`.
 pub fn get_log(
     vault_path: &Path,
     limit: Option<u32>,
     offset: Option<u32>,
 ) -> Result<Vec<CommitInfo>, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+
+    let head = match repo.head() {
+        Ok(h) => h,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut revwalk = repo.revwalk()?;
+    revwalk.push(
+        head.target()
+            .ok_or_else(|| TechtiteError::Other("HEAD has no target".to_string()))?,
+    )?;
+    revwalk.set_sorting(Sort::TIME)?;
+
+    let skip = offset.unwrap_or(0) as usize;
+    let take = limit.unwrap_or(50) as usize;
+
+    let mut commits = Vec::new();
+
+    for (i, oid_result) in revwalk.enumerate() {
+        if i < skip {
+            continue;
+        }
+        if commits.len() >= take {
+            break;
+        }
+
+        let oid = oid_result?;
+        let commit = repo.find_commit(oid)?;
+
+        let changed_files = {
+            let tree = commit.tree()?;
+            let parent_tree = if commit.parent_count() > 0 {
+                Some(commit.parent(0)?.tree()?)
+            } else {
+                None
+            };
+            let diff = repo.diff_tree_to_tree(parent_tree.as_ref(), Some(&tree), None)?;
+            let mut files = Vec::new();
+            diff.foreach(
+                &mut |delta, _| {
+                    if let Some(p) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+                        files.push(p.to_string_lossy().to_string());
+                    }
+                    true
+                },
+                None,
+                None,
+                None,
+            )?;
+            files
+        };
+
+        let message = commit.message().unwrap_or("").to_string();
+        let is_auto_commit = message.starts_with("[auto]") || message.starts_with("auto:");
+
+        let author = commit.author();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+
+        let timestamp = chrono::DateTime::from_timestamp(commit.time().seconds(), 0)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_default();
+
+        commits.push(CommitInfo {
+            hash: oid.to_string(),
+            message: message.trim().to_string(),
+            author: author_name,
+            timestamp,
+            is_auto_commit,
+            changed_files,
+        });
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let mut revwalk = repo.revwalk()?;
-    // revwalk.push_head()?;
-    // revwalk.set_sorting(git2::Sort::TIME)?;
-    // skip offset, take limit, map to CommitInfo...
-
-    let _ = (limit, offset);
-    Ok(Vec::new())
+    Ok(commits)
 }
 
 // ---------------------------------------------------------------------------
 // Branches
 // ---------------------------------------------------------------------------
 
-/// List all branches (local and remote).
-///
-/// Stub: returns a single "main" branch marked as current.
-/// Real impl: iterate `repo.branches(None)?`.
+/// List all local branches.
 pub fn get_branches(vault_path: &Path) -> Result<Vec<BranchInfo>, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+
+    let current_branch = repo
+        .head()
+        .ok()
+        .and_then(|h| h.shorthand().map(|s| s.to_string()));
+
+    let mut branches_out = Vec::new();
+    let branches = repo.branches(Some(git2::BranchType::Local))?;
+
+    for branch_result in branches {
+        let (branch, _branch_type) = branch_result?;
+        let name = branch.name()?.unwrap_or("(unnamed)").to_string();
+        let is_current = current_branch.as_deref() == Some(name.as_str());
+
+        let upstream = branch
+            .upstream()
+            .ok()
+            .and_then(|u| u.name().ok().flatten().map(|s| s.to_string()));
+
+        let (ahead, behind) = if let Ok(local_oid) = branch.get().resolve().and_then(|r| {
+            r.target()
+                .ok_or_else(|| git2::Error::from_str("no target"))
+        }) {
+            if let Some(ref us) = upstream {
+                if let Ok(remote_ref) = repo.find_reference(&format!("refs/remotes/{}", us)) {
+                    if let Some(remote_oid) = remote_ref.target() {
+                        repo.graph_ahead_behind(local_oid, remote_oid)
+                            .unwrap_or((0, 0))
+                    } else {
+                        (0, 0)
+                    }
+                } else {
+                    (0, 0)
+                }
+            } else {
+                (0, 0)
+            }
+        } else {
+            (0, 0)
+        };
+
+        branches_out.push(BranchInfo {
+            name,
+            is_current,
+            upstream,
+            ahead: ahead as u32,
+            behind: behind as u32,
+        });
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let branches = repo.branches(None)?;
-    // ...
+    if branches_out.is_empty() {
+        branches_out.push(BranchInfo {
+            name: current_branch.unwrap_or_else(|| "main".to_string()),
+            is_current: true,
+            upstream: None,
+            ahead: 0,
+            behind: 0,
+        });
+    }
 
-    Ok(vec![BranchInfo {
-        name: "main".to_string(),
-        is_current: true,
-        upstream: None,
-        ahead: 0,
-        behind: 0,
-    }])
+    Ok(branches_out)
 }
 
 /// Create a new branch from HEAD.
-///
-/// Stub: no-op.
-/// Real impl: `repo.branch(name, &head_commit, false)?;`
 pub fn create_branch(vault_path: &Path, name: &str) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let head_commit = repo.head()?.peel_to_commit()?;
-    // repo.branch(name, &head_commit, false)?;
-
-    let _ = name;
+    let repo = open_repo(vault_path)?;
+    let head_commit = repo.head()?.peel_to_commit()?;
+    repo.branch(name, &head_commit, false)?;
     Ok(())
 }
 
 /// Checkout (switch to) an existing branch.
-///
-/// Stub: no-op.
-/// Real impl: set HEAD reference to the branch, then checkout tree.
-/// Must error if there are uncommitted changes.
 pub fn checkout_branch(vault_path: &Path, name: &str) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
+    let repo = open_repo(vault_path)?;
+
+    let status = get_status(vault_path)?;
+    if !status.is_clean {
+        return Err(TechtiteError::Other(
+            "Cannot switch branches with uncommitted changes".to_string(),
+        ));
     }
 
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    //
-    // // Safety check: error if working directory is dirty
-    // let status = get_status(vault_path)?;
-    // if !status.is_clean {
-    //     return Err(TechtiteError::Other(
-    //         "Cannot switch branches with uncommitted changes".to_string(),
-    //     ));
-    // }
-    //
-    // let refname = format!("refs/heads/{}", name);
-    // let obj = repo.revparse_single(&refname)?;
-    // repo.checkout_tree(&obj, None)?;
-    // repo.set_head(&refname)?;
-
-    let _ = name;
+    let refname = format!("refs/heads/{}", name);
+    let obj = repo.revparse_single(&refname)?;
+    repo.checkout_tree(&obj, None)?;
+    repo.set_head(&refname)?;
     Ok(())
 }
 
 // ---------------------------------------------------------------------------
-// Remote operations (push / pull / fetch)
+// Remote operations (push / pull / fetch) — stubs, out of scope for now
 // ---------------------------------------------------------------------------
 
-/// Push the current branch to origin.
-///
-/// Stub: no-op.
-/// Real impl: use `repo.find_remote("origin")?.push(...)` with callbacks.
+/// Push the current branch to origin. (Stub — out of scope)
 pub fn push(vault_path: &Path, _branch: &str) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // TODO (Unit 9): Obtain credentials from credential_service for RemoteCallbacks
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let mut remote = repo.find_remote("origin")?;
-    // let mut callbacks = git2::RemoteCallbacks::new();
-    // callbacks.credentials(|_url, _user, _allowed| { ... });
-    // let refspec = format!("refs/heads/{}:refs/heads/{}", branch, branch);
-    // remote.push(&[&refspec], Some(git2::PushOptions::new().remote_callbacks(callbacks)))?;
-
+    let _repo = open_repo(vault_path)?;
     Ok(())
 }
 
-/// Pull (fetch + merge) from origin.
-///
-/// Stub: no-op, returns no conflicts.
-/// Real impl: fetch, then merge analysis + fast-forward or normal merge.
+/// Pull (fetch + merge) from origin. (Stub — out of scope)
 pub fn pull(vault_path: &Path, _branch: &str) -> Result<PullResult, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // TODO (Unit 9): Obtain credentials from credential_service for RemoteCallbacks
-    // let repo = git2::Repository::discover(vault_path)?;
-    // 1. fetch
-    // 2. merge_analysis
-    // 3. fast-forward or normal merge
-    // 4. detect conflicts
-
+    let _repo = open_repo(vault_path)?;
     Ok(PullResult {
         has_conflicts: false,
         conflicts: Vec::new(),
@@ -344,40 +518,15 @@ pub fn pull(vault_path: &Path, _branch: &str) -> Result<PullResult, TechtiteErro
 }
 
 /// Set remote URL for the repository.
-///
-/// Stub: no-op.
-/// Real impl: `repo.remote_set_url("origin", url)?;`
 pub fn set_remote_url(vault_path: &Path, url: &str) -> Result<(), TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // let repo = git2::Repository::discover(vault_path)?;
-    // repo.remote_set_url("origin", url)?;
-
-    let _ = url;
+    let repo = open_repo(vault_path)?;
+    repo.remote_set_url("origin", url)?;
     Ok(())
 }
 
-/// Test connection to the remote.
-///
-/// Stub: always returns true.
-/// Real impl: try `remote.connect(Direction::Fetch)` and check result.
+/// Test connection to the remote. (Stub — out of scope)
 pub fn test_remote_connection(vault_path: &Path) -> Result<bool, TechtiteError> {
-    if !is_git_repo(vault_path) {
-        return Err(TechtiteError::Other("Not a git repository".to_string()));
-    }
-
-    // TODO: Replace with real git2 implementation
-    // TODO (Unit 9): Obtain credentials from credential_service for RemoteCallbacks
-    // let repo = git2::Repository::discover(vault_path)?;
-    // let mut remote = repo.find_remote("origin")?;
-    // match remote.connect(git2::Direction::Fetch) {
-    //     Ok(_) => { remote.disconnect()?; Ok(true) }
-    //     Err(_) => Ok(false)
-    // }
-
+    let _repo = open_repo(vault_path)?;
     Ok(true)
 }
 

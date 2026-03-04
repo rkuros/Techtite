@@ -23,6 +23,9 @@ pub enum TechtiteError {
     #[error("Invalid path: {0}")]
     InvalidPath(String),
 
+    #[error("Git error: {0}")]
+    Git(#[from] git2::Error),
+
     #[error("{0}")]
     Other(String),
 }

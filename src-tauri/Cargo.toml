@@ -27,6 +27,7 @@ notify-debouncer-mini = "0.6"
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1"
+git2 = "0.20"
 thiserror = "2"
 dirs-next = "2"
 tempfile = { version = "3", optional = true }
