@@ -128,14 +128,10 @@ html, body, #root {
 .cm-editor .tok-quote {
   color: var(--color-text-secondary) !important;
 }
-/* Our blockquote line decoration — continuous left border */
+/* Our blockquote line decoration — left-only border via gradient */
 .cm-editor .cm-blockquote-line {
-  box-shadow: inset 3px 0 0 1px var(--color-accent) !important;
+  background: linear-gradient(to right, var(--color-accent) 3px, rgba(137, 180, 250, 0.04) 3px) !important;
   padding-left: 16px !important;
-  background-color: rgba(137, 180, 250, 0.04) !important;
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  line-height: 1.7 !important;
 }
 .cm-editor .tok-keyword {
   color: #f9e2af !important;

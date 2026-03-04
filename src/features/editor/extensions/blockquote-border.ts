@@ -46,11 +46,8 @@ class BlockquoteBorderPlugin {
 
 const blockquoteBorderTheme = EditorView.baseTheme({
   ".cm-blockquote-line": {
-    boxShadow: "inset 3px 0 0 1px #89b4fa",
+    background: "linear-gradient(to right, #89b4fa 3px, rgba(137, 180, 250, 0.04) 3px)",
     paddingLeft: "16px !important",
-    backgroundColor: "rgba(137, 180, 250, 0.04)",
-    marginTop: "0",
-    marginBottom: "0",
   },
 });
 
