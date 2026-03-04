@@ -32,6 +32,9 @@ thiserror = "2"
 dirs-next = "2"
 portable-pty = "0.8"
 tempfile = { version = "3", optional = true }
+fastembed = "4"
+rusqlite = { version = "0.31", features = ["bundled"] }
+bytemuck = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"

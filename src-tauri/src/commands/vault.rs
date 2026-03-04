@@ -4,8 +4,10 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::models::vault::{Vault, VaultConfig};
+use crate::services::embedding_service::EmbeddingServiceState;
 use crate::services::link_index_service::{self, LinkIndexState};
 use crate::services::tag_service::{self, TagIndexState};
+use crate::services::vector_store_service::{self, VectorStoreState};
 use crate::services::{vault_service, watcher_service};
 use crate::AppState;
 
@@ -84,6 +86,8 @@ pub fn open(
     state: State<'_, AppState>,
     link_state: State<'_, LinkIndexState>,
     tag_state: State<'_, TagIndexState>,
+    embedding_state: State<'_, EmbeddingServiceState>,
+    vector_state: State<'_, VectorStoreState>,
     path: String,
 ) -> Result<Vault, String> {
     let vault_path = PathBuf::from(&path);
@@ -98,6 +102,16 @@ pub fn open(
 
     // Build link and tag indices from vault contents
     build_indices(&vault_path, &link_state, &tag_state)?;
+
+    // Initialize embedding model (non-fatal: log warning on failure)
+    if let Err(e) = embedding_state.init_model() {
+        eprintln!("[Unit 5] Warning: Failed to load embedding model: {}", e);
+    }
+
+    // Initialize vector store DB (non-fatal: log warning on failure)
+    if let Err(e) = vector_store_service::init_db(&vector_state, &vault_path) {
+        eprintln!("[Unit 5] Warning: Failed to initialize vector store: {}", e);
+    }
 
     // Store current vault
     let mut current = state.current_vault.lock().map_err(|e| e.to_string())?;

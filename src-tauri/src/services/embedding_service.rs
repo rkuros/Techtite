@@ -1,47 +1,18 @@
 use std::sync::Mutex;
 
+use fastembed::{EmbeddingModel, InitOptions, TextEmbedding};
 use serde::{Deserialize, Serialize};
-
-// ---------------------------------------------------------------------------
-// ONNX Runtime (ort crate) integration stub
-//
-// TODO: Add `ort` to Cargo.toml dependencies:
-//   ort = { version = "2", features = ["load-dynamic"] }
-//
-// Once the ort crate is added, this module should:
-//   1. Load a pre-trained sentence-transformer ONNX model (e.g. all-MiniLM-L6-v2)
-//      from `<vault>/.techtite/models/` or bundle it in the app resources.
-//   2. Implement proper tokenization using the model's tokenizer config.
-//   3. Run inference through ONNX Runtime to produce 384-dimensional embeddings.
-//   4. Support batch embedding for efficient index building.
-//   5. Cache the ONNX session to avoid repeated model loading.
-//
-// Model download flow (future):
-//   - On first launch or when model is missing, download from HuggingFace
-//   - Store in `<vault>/.techtite/models/all-MiniLM-L6-v2/`
-//   - Emit progress events: semantic:model_download_progress
-//
-// Tokenization (future):
-//   - Use the `tokenizers` crate (HuggingFace tokenizers) for proper subword tokenization
-//   - Load tokenizer.json from the model directory
-//   - Handle max sequence length (512 tokens for MiniLM)
-//
-// For now, this module provides:
-//   - A stub `generate_embedding()` returning a zero vector of length 384
-//   - A functional `chunk_markdown()` that splits on Markdown headings
-// ---------------------------------------------------------------------------
 
 /// Embedding vector dimension (all-MiniLM-L6-v2 produces 384-dim vectors).
 pub const EMBEDDING_DIM: usize = 384;
 
 /// Tauri-managed state for the embedding service.
 ///
-/// Holds the ONNX Runtime session (when integrated) and chunking configuration.
+/// Holds the fastembed TextEmbedding model and chunking configuration.
 /// Wrapped in a Mutex for thread-safe access from Tauri command handlers.
 pub struct EmbeddingServiceState {
-    /// Whether the embedding model has been loaded.
-    /// TODO: Replace with `Option<ort::Session>` when ort crate is added.
-    pub is_loaded: Mutex<bool>,
+    /// The loaded fastembed model, None until init_model() is called.
+    pub model: Mutex<Option<TextEmbedding>>,
 
     /// Default chunking configuration.
     pub config: Mutex<ChunkingConfig>,
@@ -50,9 +21,61 @@ pub struct EmbeddingServiceState {
 impl EmbeddingServiceState {
     pub fn new() -> Self {
         Self {
-            is_loaded: Mutex::new(false),
+            model: Mutex::new(None),
             config: Mutex::new(ChunkingConfig::default()),
         }
+    }
+
+    /// Load the embedding model. Safe to call multiple times (no-op if already loaded).
+    pub fn init_model(&self) -> Result<(), String> {
+        let mut model_guard = self.model.lock().map_err(|e| e.to_string())?;
+        if model_guard.is_some() {
+            return Ok(());
+        }
+
+        let mut options = InitOptions::default();
+        options.model_name = EmbeddingModel::AllMiniLML6V2;
+        options.show_download_progress = true;
+
+        let model = TextEmbedding::try_new(options)
+        .map_err(|e| format!("Failed to load embedding model: {}", e))?;
+
+        *model_guard = Some(model);
+        println!("[Unit 5] Embedding model loaded (AllMiniLmL6V2, {}d)", EMBEDDING_DIM);
+        Ok(())
+    }
+
+    /// Generate an embedding vector for a single text.
+    pub fn generate_embedding(&self, text: &str) -> Result<Vec<f32>, String> {
+        let model_guard = self.model.lock().map_err(|e| e.to_string())?;
+        let model = model_guard
+            .as_ref()
+            .ok_or("Embedding model not loaded. Call init_model() first.")?;
+
+        let embeddings = model
+            .embed(vec![text], None)
+            .map_err(|e| format!("Embedding generation failed: {}", e))?;
+
+        embeddings
+            .into_iter()
+            .next()
+            .ok_or_else(|| "No embedding returned".to_string())
+    }
+
+    /// Generate embeddings for multiple texts in a single batch.
+    pub fn generate_embeddings(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>, String> {
+        if texts.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let model_guard = self.model.lock().map_err(|e| e.to_string())?;
+        let model = model_guard
+            .as_ref()
+            .ok_or("Embedding model not loaded. Call init_model() first.")?;
+
+        model
+            .embed(texts, None)
+            .map_err(|e| format!("Batch embedding generation failed: {}", e))
     }
 }
 
@@ -281,39 +304,61 @@ fn split_large_chunk(chunk: &Chunk, max_chars: usize) -> Vec<Chunk> {
     result
 }
 
-/// Generate an embedding vector for the given text.
-///
-/// **STUB IMPLEMENTATION**: Returns a zero vector of dimension 384.
-///
-/// TODO: When ort crate is integrated, this should:
-///   1. Tokenize the input text using the model's tokenizer
-///   2. Run ONNX inference to produce the embedding
-///   3. Normalize the output vector (L2 normalization)
-///   4. Return the resulting f32 vector
-///
-/// TODO: Add batch version `generate_embeddings(texts: &[&str]) -> Vec<Vec<f32>>`
-///   for efficient bulk processing during index build.
-///
-/// # Arguments
-/// - `_text` — The text to embed (unused in stub)
-///
-/// # Returns
-/// A zero vector of length `EMBEDDING_DIM` (384).
-pub fn generate_embedding(_text: &str) -> Vec<f32> {
-    // Stub: return a zero vector of the expected dimension.
-    // When the ort crate is integrated, this will run actual ONNX inference.
-    vec![0.0_f32; EMBEDDING_DIM]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_generate_embedding_returns_correct_dimension() {
-        let embedding = generate_embedding("hello world");
+    fn test_embedding_service_state_new() {
+        let state = EmbeddingServiceState::new();
+        let model = state.model.lock().unwrap();
+        assert!(model.is_none());
+    }
+
+    #[test]
+    fn test_generate_embedding_without_model_returns_error() {
+        let state = EmbeddingServiceState::new();
+        let result = state.generate_embedding("hello world");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not loaded"));
+    }
+
+    #[test]
+    fn test_generate_embeddings_empty_input() {
+        let state = EmbeddingServiceState::new();
+        let result = state.generate_embeddings(vec![]);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
+
+    #[test]
+    #[ignore] // Requires model download (~23MB); run with: cargo test -- --ignored
+    fn test_init_model_and_generate_embedding() {
+        let state = EmbeddingServiceState::new();
+        state.init_model().expect("Model should load");
+
+        let embedding = state
+            .generate_embedding("hello world")
+            .expect("Should generate embedding");
         assert_eq!(embedding.len(), EMBEDDING_DIM);
-        assert!(embedding.iter().all(|&v| v == 0.0));
+
+        // Verify it's not a zero vector
+        assert!(embedding.iter().any(|&v| v != 0.0));
+    }
+
+    #[test]
+    #[ignore] // Requires model download
+    fn test_batch_embeddings() {
+        let state = EmbeddingServiceState::new();
+        state.init_model().expect("Model should load");
+
+        let embeddings = state
+            .generate_embeddings(vec!["hello", "world", "test"])
+            .expect("Should generate batch embeddings");
+        assert_eq!(embeddings.len(), 3);
+        for emb in &embeddings {
+            assert_eq!(emb.len(), EMBEDDING_DIM);
+        }
     }
 
     #[test]
@@ -471,13 +516,6 @@ Line 8.";
         let config = ChunkingConfig::default();
         assert_eq!(config.max_chunk_chars, 1000);
         assert_eq!(config.min_chunk_chars, 50);
-    }
-
-    #[test]
-    fn test_embedding_service_state_new() {
-        let state = EmbeddingServiceState::new();
-        let loaded = state.is_loaded.lock().unwrap();
-        assert!(!*loaded);
     }
 
     #[test]

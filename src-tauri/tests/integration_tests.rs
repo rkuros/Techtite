@@ -41,11 +41,14 @@ fn test_knowledge_base_and_semantic_search_integration() {
     assert!(links.iter().any(|l| l.target_path == "architecture.md"));
     assert!(links.iter().any(|l| l.target_path == "roadmap.md"));
 
-    // Generate embedding for the same content (Unit 5)
-    let embedding = services::embedding_service::generate_embedding(
-        "Project architecture and roadmap details",
-    );
-    assert_eq!(embedding.len(), 384); // Stub returns 384-dim zero vector
+    // Create a dummy embedding vector (Unit 5)
+    // Real embedding requires model download; use a deterministic test vector instead
+    let embedding = vec![0.1_f32; services::embedding_service::EMBEDDING_DIM];
+    assert_eq!(embedding.len(), 384);
+
+    // Initialize vector store with a temp DB (Unit 5)
+    let tmp_dir = tempfile::tempdir().unwrap();
+    services::vector_store_service::init_db(&vector_state, tmp_dir.path()).unwrap();
 
     // Store in vector store using ChunkWithVector (Unit 5)
     let chunk = services::vector_store_service::ChunkWithVector {
@@ -58,11 +61,12 @@ fn test_knowledge_base_and_semantic_search_integration() {
     };
     services::vector_store_service::upsert_file_chunks(&vector_state, &[chunk]).unwrap();
 
-    // Search should return Ok (stub returns empty, but no error) (Unit 5)
+    // Search should return matching results (Unit 5)
     let results =
         services::vector_store_service::search_by_vector(&vector_state, &embedding, 5).unwrap();
-    // Stub returns empty results; just verify the call succeeds without panic
-    assert!(results.is_empty()); // Stub always returns empty
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].file_path, "notes/project.md");
+    assert!((results[0].score - 1.0).abs() < 1e-6); // Identical vectors → score 1.0
 }
 
 // ---------------------------------------------------------------------------
