@@ -30,9 +30,17 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      // Only watch src/ and index.html — ignore everything else
-      // Prevents page reload when vault files (.md, .techtite/) are modified
-      ignored: ["**/src-tauri/**", "**/.techtite/**", "**/node_modules/**", "**/aidlc-docs/**", "**/*.md", "**/target/**"],
+      // Whitelist: only watch Techtite source code, ignore everything else.
+      // This prevents Vite from reloading when the app writes to vault files
+      // (auto-save, session logs, vector DB, etc.) regardless of what folder
+      // the user opens as a vault.
+      ignored: [
+        // Ignore everything...
+        "**/*",
+        // ...except src/ and config files (Vite re-includes via its module graph)
+        "!**/src/**",
+        "!**/index.html",
+      ],
     },
   },
 
