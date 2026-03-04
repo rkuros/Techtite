@@ -5,6 +5,7 @@ import { languages } from "@codemirror/language-data";
 import { EditorView, keymap } from "@codemirror/view";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
+import { livePreviewExtension } from "../extensions/live-preview";
 
 // ---------------------------------------------------------------------------
 // Techtite dark theme for CodeMirror
@@ -119,6 +120,18 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
 
   const isSourceMode = tab.viewMode === "source";
 
+  // Build extensions based on view mode
+  const extensions = [
+    markdown({
+      base: markdownLanguage,
+      codeLanguages: languages,
+    }),
+    EditorView.lineWrapping,
+    makeSaveKeymap(tab.filePath),
+    // Only add live preview decorations in Live Preview mode
+    ...(!isSourceMode ? [livePreviewExtension()] : []),
+  ];
+
   return (
     <div className="flex flex-col h-full w-full">
       {/* View mode toggle */}
@@ -159,14 +172,7 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
           value={initialContent}
           height="100%"
           theme={techtiteDarkTheme}
-          extensions={[
-            markdown({
-              base: markdownLanguage,
-              codeLanguages: languages,
-            }),
-            EditorView.lineWrapping,
-            makeSaveKeymap(tab.filePath),
-          ]}
+          extensions={extensions}
           onChange={handleChange}
           basicSetup={{
             lineNumbers: false,
