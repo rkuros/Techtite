@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { hybridMarkdown, setMode } from "codemirror-markdown-hybrid";
 import { EditorView, keymap } from "@codemirror/view";
@@ -65,9 +65,6 @@ export const MarkdownEditor = React.memo(
     const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
     const markDirty = useEditorStore((s) => s.markDirty);
 
-    // Fix B: After mount, set value to undefined so CodeMirror is uncontrolled
-    const [mounted, setMounted] = useState(false);
-    useEffect(() => { setMounted(true); }, []);
 
     // Memoize extensions — only recreate when filePath changes
     const extensions = useMemo(() => [
@@ -159,7 +156,7 @@ export const MarkdownEditor = React.memo(
         <div className="flex-1 overflow-auto">
           <CodeMirror
             ref={cmRef}
-            value={mounted ? undefined : initialContent}
+            value={initialContent}
             height="100%"
             theme="dark"
             extensions={extensions}
