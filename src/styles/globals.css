@@ -69,24 +69,54 @@ html, body, #root {
   background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
 
-/* CodeMirror theme overrides — ensure dark background matches app */
+/* CodeMirror theme overrides — ensure dark background + readable text */
 .cm-editor {
   background-color: var(--color-editor-bg) !important;
+  color: var(--color-text-primary) !important;
 }
 .cm-editor .cm-scroller {
   background-color: var(--color-editor-bg) !important;
 }
 .cm-editor .cm-content {
+  color: var(--color-text-primary) !important;
   caret-color: var(--color-accent) !important;
+}
+.cm-editor .cm-line {
+  color: var(--color-text-primary) !important;
 }
 .cm-editor .cm-gutters {
   background-color: var(--color-editor-bg) !important;
+  color: var(--color-text-muted) !important;
   border-right: none !important;
 }
 .cm-editor .cm-activeLine {
-  background-color: rgba(205, 214, 244, 0.03) !important;
+  background-color: rgba(205, 214, 244, 0.05) !important;
 }
 .cm-editor.cm-focused .cm-selectionBackground,
 .cm-editor .cm-selectionBackground {
-  background-color: rgba(137, 180, 250, 0.2) !important;
+  background-color: rgba(137, 180, 250, 0.25) !important;
+}
+/* Markdown syntax characters — slightly muted but visible */
+.cm-editor .tok-meta,
+.cm-editor .tok-processingInstruction {
+  color: var(--color-text-muted) !important;
+}
+/* Bold / italic / strong emphasis text */
+.cm-editor .tok-strong { color: #cdd6f4 !important; font-weight: 700; }
+.cm-editor .tok-emphasis { color: #cdd6f4 !important; font-style: italic; }
+/* Links */
+.cm-editor .tok-link, .cm-editor .tok-url {
+  color: var(--color-accent) !important;
+}
+/* Headings */
+.cm-editor .tok-heading { color: #89b4fa !important; }
+.cm-editor .tok-heading1 { color: #89b4fa !important; font-size: 1.5em; font-weight: 700; }
+.cm-editor .tok-heading2 { color: #89dceb !important; font-size: 1.3em; font-weight: 600; }
+.cm-editor .tok-heading3 { color: #a6e3a1 !important; font-size: 1.15em; font-weight: 600; }
+/* Inline code */
+.cm-editor .tok-monospace {
+  color: #fab387 !important;
+  background-color: var(--color-bg-surface) !important;
+  border-radius: 3px;
+  padding: 1px 4px;
 }
