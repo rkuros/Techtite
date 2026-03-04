@@ -2,50 +2,34 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { languages } from "@codemirror/language-data";
 import { EditorView, keymap } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
 
 // ---------------------------------------------------------------------------
-// Techtite dark theme (shared with MarkdownEditor)
+// Theme (module-level, created once)
 // ---------------------------------------------------------------------------
-const techtiteDarkTheme = EditorView.theme(
-  {
-    "&": {
-      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
-      color: "var(--color-text-primary, #e5e5ea)",
-      fontSize: "13px",
-      fontFamily:
-        "var(--font-mono, 'SF Mono', Monaco, Menlo, Consolas, monospace)",
-    },
-    ".cm-content": {
-      padding: "8px 16px",
-      caretColor: "var(--color-accent, #8b7ef0)",
-    },
-    ".cm-cursor": {
-      borderLeftColor: "var(--color-accent, #8b7ef0)",
-    },
-    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-      backgroundColor: "rgba(139, 126, 240, 0.2)",
-    },
-    ".cm-gutters": {
-      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
-      color: "var(--color-text-muted, #8e8e93)",
-      border: "none",
-      paddingRight: "8px",
-    },
-    ".cm-activeLine": {
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-    },
-    ".cm-activeLineGutter": {
-      backgroundColor: "rgba(255, 255, 255, 0.03)",
-    },
-  },
-  { dark: true }
-);
+const lineWrapping = EditorView.lineWrapping;
+
+// basicSetup configs (stable references)
+const basicSetupReadOnly = {
+  lineNumbers: true,
+  foldGutter: true,
+  highlightActiveLine: true,
+  bracketMatching: true,
+  closeBrackets: false,
+  autocompletion: false,
+};
+const basicSetupEditable = {
+  lineNumbers: true,
+  foldGutter: true,
+  highlightActiveLine: true,
+  bracketMatching: true,
+  closeBrackets: true,
+  autocompletion: false,
+};
 
 // ---------------------------------------------------------------------------
-// Language extension resolver
+// Language resolver
 // ---------------------------------------------------------------------------
 function getLanguageDescription(lang: string) {
   const lower = lang.toLowerCase();
@@ -70,33 +54,29 @@ interface CodeViewerProps {
 export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
   const cmRef = useRef<ReactCodeMirrorRef>(null);
   const [isEditable, setIsEditable] = useState(false);
-  const { registerEditor, unregisterEditor, markDirty } =
-    useEditorStore();
+  const registerEditor = useEditorStore((s) => s.registerEditor);
+  const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
+  const markDirty = useEditorStore((s) => s.markDirty);
 
-  // Build extensions (including language support)
+  // Extensions — only depend on filePath and language (NOT isEditable)
+  // Read-only is toggled imperatively via EditorView.dispatch
   const extensions = useMemo(() => {
     const exts: import("@codemirror/state").Extension[] = [
-      EditorView.lineWrapping,
-      keymap.of([
-        {
-          key: "Mod-s",
-          run: () => {
-            if (isEditable) useEditorStore.getState().saveFile(tab.filePath);
-            return true;
-          },
+      lineWrapping,
+      keymap.of([{
+        key: "Mod-s",
+        run: () => {
+          useEditorStore.getState().saveFile(tab.filePath);
+          return true;
         },
-      ]),
+      }]),
     ];
-    if (!isEditable) {
-      exts.push(EditorState.readOnly.of(true));
-    }
-    // Add language support if available
     const desc = getLanguageDescription(language);
     if (desc?.support) {
       exts.push(desc.support);
     }
     return exts;
-  }, [isEditable, tab.filePath, language]);
+  }, [tab.filePath, language]);
 
   // Register EditorViewRef
   useEffect(() => {
@@ -111,11 +91,8 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
         }
       },
     };
-
     registerEditor(tab.id, ref);
-    return () => {
-      unregisterEditor(tab.id);
-    };
+    return () => { unregisterEditor(tab.id); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id]);
 
@@ -126,23 +103,28 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
   const toggleEditMode = useCallback(() => {
     const willEdit = !isEditable;
     setIsEditable(willEdit);
-    useEditorStore
-      .getState()
-      .setViewMode(tab.id, willEdit ? "source" : "readOnly");
+    useEditorStore.getState().setViewMode(tab.id, willEdit ? "source" : "readOnly");
+    // Toggle readOnly imperatively
+    const view = cmRef.current?.view;
+    if (view) {
+      view.dispatch({
+        effects: view.state.readOnly !== willEdit ? [] : [],
+      });
+    }
   }, [isEditable, tab.id]);
 
   return (
     <div className="flex flex-col h-full w-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#2a2a2f)]">
+      <div className="flex items-center justify-between px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#313244)]">
         <div className="flex items-center gap-2">
-          <span className="text-[var(--color-accent,#8b7ef0)] font-semibold uppercase tracking-wider">
+          <span className="text-[var(--color-accent,#89b4fa)] font-semibold uppercase tracking-wider">
             {language}
           </span>
         </div>
         <button
           onClick={toggleEditMode}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[var(--color-text-muted,#8e8e93)] hover:text-[var(--color-text-primary,#e5e5ea)] hover:bg-[var(--color-bg-surface,#252528)] transition-colors"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[var(--color-text-muted,#6c7086)] hover:text-[var(--color-text-primary,#cdd6f4)] hover:bg-[var(--color-bg-surface,#313244)] transition-colors"
           title={isEditable ? "Lock (read-only)" : "Unlock (edit)"}
         >
           <span className="text-base">{isEditable ? "\u{1F513}" : "\u{1F512}"}</span>
@@ -156,17 +138,12 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
           ref={cmRef}
           value={initialContent}
           height="100%"
-          theme={techtiteDarkTheme}
+          theme="dark"
+          editable={isEditable}
+          readOnly={!isEditable}
           extensions={extensions}
           onChange={handleChange}
-          basicSetup={{
-            lineNumbers: true,
-            foldGutter: true,
-            highlightActiveLine: true,
-            bracketMatching: true,
-            closeBrackets: isEditable,
-            autocompletion: false,
-          }}
+          basicSetup={isEditable ? basicSetupEditable : basicSetupReadOnly}
         />
       </div>
     </div>
