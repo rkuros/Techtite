@@ -5,6 +5,7 @@ import {
   PanelResizeHandle,
 } from "react-resizable-panels";
 import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store";
+import { initSemanticEventListeners } from "@/stores/semantic-store";
 import { useVaultStore } from "@/stores/vault-store";
 import { SIDEBAR_PANELS } from "@/shared/constants";
 import { Ribbon } from "./Ribbon";
@@ -18,15 +19,20 @@ import { FileExplorer } from "@/features/file-management";
 import { SearchPanel } from "@/features/knowledge";
 import { GitPanel } from "@/features/git";
 import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
+import { AIChat, RAGStatusIndicator } from "@/features/semantic-search";
 
 export function AppLayout() {
   const currentVault = useVaultStore((s) => s.currentVault);
   const activeSidebarPanel = useEditorStore((s) => s.activeSidebarPanel);
 
-  // Initialize editor event listeners once on mount
+  // Initialize event listeners once on mount
   useEffect(() => {
-    const cleanup = initEditorEventListeners();
-    return cleanup;
+    const cleanupEditor = initEditorEventListeners();
+    const cleanupSemantic = initSemanticEventListeners();
+    return () => {
+      cleanupEditor();
+      cleanupSemantic();
+    };
   }, []);
 
   // Show welcome screen when no vault is open
@@ -98,7 +104,10 @@ export function AppLayout() {
       </div>
 
       {/* Status Bar */}
-      <StatusBar />
+      <StatusBar rightSlot={<RAGStatusIndicator />} />
+
+      {/* Floating AI Chat */}
+      <AIChat />
     </div>
   );
 }

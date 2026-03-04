@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useKnowledgeStore } from "@/stores/knowledge-store";
 import { useEditorStore } from "@/stores/editor-store";
+import { SemanticSearchTab } from "@/features/semantic-search";
 
 /**
  * SearchPanel — Left sidebar search panel with Keyword tab.
@@ -173,12 +174,8 @@ export function SearchPanel() {
           </div>
         )}
 
-        {!isSearching && searchMode === "semantic" && (
-          <div className="flex items-center justify-center py-8">
-            <span className="text-xs text-muted-foreground">
-              Semantic search coming in Unit 5
-            </span>
-          </div>
+        {searchMode === "semantic" && (
+          <SemanticSearchTab />
         )}
 
         {searchMode === "keyword" &&
