@@ -46,11 +46,11 @@ class BlockquoteBorderPlugin {
 
 const blockquoteBorderTheme = EditorView.baseTheme({
   ".cm-blockquote-line": {
-    boxShadow: "inset 3px 0 0 0 #89b4fa",
+    boxShadow: "inset 3px 0 0 1px #89b4fa",
     paddingLeft: "16px !important",
     backgroundColor: "rgba(137, 180, 250, 0.04)",
-    paddingTop: "0",
-    paddingBottom: "0",
+    marginTop: "0",
+    marginBottom: "0",
   },
 });
 

@@ -120,13 +120,22 @@ html, body, #root {
   border-radius: 3px;
   padding: 1px 4px;
 }
-/* Blockquote — eliminate line gaps so the library's left border looks continuous */
-.cm-editor .cm-line {
-  border-top: none !important;
-  border-bottom: none !important;
+/* Blockquote — reset any library border, use our own via line decoration */
+.cm-editor .cm-markdown-preview .md-blockquote {
+  border-left: none !important;
+  box-shadow: none !important;
 }
 .cm-editor .tok-quote {
   color: var(--color-text-secondary) !important;
+}
+/* Our blockquote line decoration — continuous left border */
+.cm-editor .cm-blockquote-line {
+  box-shadow: inset 3px 0 0 1px var(--color-accent) !important;
+  padding-left: 16px !important;
+  background-color: rgba(137, 180, 250, 0.04) !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  line-height: 1.7 !important;
 }
 .cm-editor .tok-keyword {
   color: #f9e2af !important;

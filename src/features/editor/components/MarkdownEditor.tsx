@@ -4,6 +4,7 @@ import { hybridMarkdown, toggleHybridMode, setMode } from "codemirror-markdown-h
 import { EditorView, keymap } from "@codemirror/view";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
+import { blockquoteBorderExtension } from "../extensions/blockquote-border";
 
 // ---------------------------------------------------------------------------
 // Techtite theme override — match Catppuccin Mocha palette
@@ -193,6 +194,7 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
               enableCollapse: true,
             }),
             techtiteThemeOverride,
+            blockquoteBorderExtension(),
             EditorView.lineWrapping,
             makeSaveKeymap(tab.filePath),
           ]}
