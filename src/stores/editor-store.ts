@@ -169,6 +169,8 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   },
 
   setTabDirty: (tabId: string, isDirty: boolean) => {
+    const tab = get().openTabs.find((t) => t.id === tabId);
+    if (!tab || tab.isDirty === isDirty) return; // no-op if already same value
     set((state) => ({
       openTabs: state.openTabs.map((t) =>
         t.id === tabId ? { ...t, isDirty } : t
@@ -204,22 +206,35 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   },
 
   markDirty: (filePath: string) => {
-    set((state) => {
-      const next = new Set(state.dirtyFiles);
-      next.add(filePath);
-      return { dirtyFiles: next };
+    const state = get();
+
+    // Already dirty — only reset auto-save timer, skip state updates entirely
+    if (state.dirtyFiles.has(filePath)) {
+      if (autoSaveTimers.has(filePath)) {
+        clearTimeout(autoSaveTimers.get(filePath)!);
+      }
+      autoSaveTimers.set(
+        filePath,
+        window.setTimeout(() => {
+          autoSaveTimers.delete(filePath);
+          get().saveFile(filePath);
+        }, 1500)
+      );
+      return;
+    }
+
+    // First time dirty: update dirtyFiles + openTabs in a single set() call
+    const tab = state.openTabs.find((t) => t.filePath === filePath);
+    set((s) => {
+      const nextDirty = new Set(s.dirtyFiles);
+      nextDirty.add(filePath);
+      const nextTabs = tab
+        ? s.openTabs.map((t) => (t.id === tab.id ? { ...t, isDirty: true } : t))
+        : s.openTabs;
+      return { dirtyFiles: nextDirty, openTabs: nextTabs };
     });
 
-    // Also mark the corresponding tab as dirty
-    const tab = get().openTabs.find((t) => t.filePath === filePath);
-    if (tab) {
-      get().setTabDirty(tab.id, true);
-    }
-
-    // Debounced auto-save (1500ms)
-    if (autoSaveTimers.has(filePath)) {
-      clearTimeout(autoSaveTimers.get(filePath)!);
-    }
+    // Start auto-save timer
     autoSaveTimers.set(
       filePath,
       window.setTimeout(() => {
@@ -269,14 +284,14 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
       console.error(`[Unit 2] Failed to save file: ${filePath}`, err);
     }
 
-    // Clear the recently-saved flag after a short delay
+    // Clear the recently-saved flag after a delay (must outlast watcher poll interval)
     setTimeout(() => {
       set((s) => {
         const next = new Set(s._recentlySavedPaths);
         next.delete(filePath);
         return { _recentlySavedPaths: next };
       });
-    }, 500);
+    }, 2000);
   },
 
   saveAllDirty: async () => {

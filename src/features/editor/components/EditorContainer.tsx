@@ -29,15 +29,35 @@ import { FrontmatterGUI } from "./FrontmatterGUI";
  * This component is rendered inside a PaneContainer (Unit 1) for each active tab.
  */
 export function EditorContainer() {
-  const { openTabs, activeTabId } = useEditorStore();
+  // Use fine-grained selectors to avoid re-render on unrelated store changes
+  const activeTabId = useEditorStore((s) => s.activeTabId);
+  const activeTabFilePath = useEditorStore(
+    (s) => s.openTabs.find((t) => t.id === s.activeTabId)?.filePath ?? null
+  );
+  const activeTabViewMode = useEditorStore(
+    (s) => s.openTabs.find((t) => t.id === s.activeTabId)?.viewMode ?? null
+  );
 
-  const activeTab = openTabs.find((t) => t.id === activeTabId) ?? null;
-
-  if (!activeTab) {
+  if (!activeTabId || !activeTabFilePath) {
     return <EmptyState />;
   }
 
-  return <EditorPane key={activeTab.id} tab={activeTab} />;
+  // Construct a stable tab-like object for EditorPane
+  // Only re-renders when id, filePath, or viewMode actually change
+  return (
+    <EditorPane
+      key={activeTabId}
+      tab={{
+        id: activeTabId,
+        filePath: activeTabFilePath,
+        viewMode: activeTabViewMode ?? "livePreview",
+        isDirty: false, // not needed by EditorPane internals
+        scrollPosition: 0,
+        cursorLine: 1,
+        cursorColumn: 1,
+      }}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
