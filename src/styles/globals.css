@@ -120,3 +120,31 @@ html, body, #root {
   border-radius: 3px;
   padding: 1px 4px;
 }
+/* Blockquote / Callout — continuous left border across wrapped lines */
+.cm-editor .cm-line .tok-quote,
+.cm-editor .cm-blockquote-line,
+.cm-editor .cm-line:has(.tok-quote) {
+  border-left: 3px solid var(--color-accent) !important;
+  padding-left: 12px !important;
+  margin-left: 0 !important;
+  color: var(--color-text-secondary) !important;
+  background-color: rgba(137, 180, 250, 0.04) !important;
+}
+/* codemirror-markdown-hybrid blockquote rendered view */
+.cm-editor .cm-quote,
+.cm-editor .cm-blockquote,
+.cm-editor [class*="blockquote"],
+.cm-editor [class*="quote-line"] {
+  border-left: 3px solid var(--color-accent) !important;
+  padding-left: 12px !important;
+  background-color: rgba(137, 180, 250, 0.04) !important;
+}
+/* Ensure consecutive blockquote lines have no gap in the border */
+.cm-editor .cm-line + .cm-line {
+  /* Lines are flush — border appears continuous by default */
+}
+/* Callout type label (e.g. [!example]) */
+.cm-editor .cm-line .tok-keyword {
+  color: #f9e2af !important;
+  font-weight: 600;
+}
