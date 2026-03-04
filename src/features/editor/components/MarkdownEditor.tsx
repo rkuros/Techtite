@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { hybridMarkdown, setMode } from "codemirror-markdown-hybrid";
 import { EditorView, keymap } from "@codemirror/view";
@@ -7,21 +7,15 @@ import type { TabState } from "@/types/editor";
 import { blockquoteBorderExtension } from "../extensions/blockquote-border";
 
 // ---------------------------------------------------------------------------
-// Techtite theme override — match Catppuccin Mocha palette
-// (created once at module level, never recreated)
+// Module-level constants (created once, stable references)
 // ---------------------------------------------------------------------------
 const techtiteThemeOverride = EditorView.theme(
   {
-    "&": {
-      backgroundColor: "#1e1e2e",
-      color: "#cdd6f4",
-    },
+    "&": { backgroundColor: "#1e1e2e", color: "#cdd6f4" },
     ".cm-content": {
-      padding: "24px 48px",
-      caretColor: "#89b4fa",
+      padding: "24px 48px", caretColor: "#89b4fa",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      fontSize: "14px",
-      lineHeight: "1.7",
+      fontSize: "14px", lineHeight: "1.7",
     },
     ".cm-cursor": { borderLeftColor: "#89b4fa" },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
@@ -42,12 +36,21 @@ const techtiteThemeOverride = EditorView.theme(
   { dark: true }
 );
 
-// Pre-built extensions that don't change (created once at module level)
 const staticBlockquoteExt = blockquoteBorderExtension();
-const lineWrapping = EditorView.lineWrapping;
+const staticLineWrapping = EditorView.lineWrapping;
+
+// Fix A: basicSetup at module level (stable reference, no re-render trigger)
+const staticBasicSetup = {
+  lineNumbers: false,
+  foldGutter: false,
+  highlightActiveLine: true,
+  bracketMatching: true,
+  closeBrackets: true,
+  autocompletion: false,
+};
 
 // ---------------------------------------------------------------------------
-// Component
+// Component (wrapped in React.memo — Fix C)
 // ---------------------------------------------------------------------------
 
 interface MarkdownEditorProps {
@@ -55,118 +58,122 @@ interface MarkdownEditorProps {
   initialContent: string;
 }
 
-export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
-  const cmRef = useRef<ReactCodeMirrorRef>(null);
-  const registerEditor = useEditorStore((s) => s.registerEditor);
-  const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
-  const markDirty = useEditorStore((s) => s.markDirty);
+export const MarkdownEditor = React.memo(
+  function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
+    const cmRef = useRef<ReactCodeMirrorRef>(null);
+    const registerEditor = useEditorStore((s) => s.registerEditor);
+    const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
+    const markDirty = useEditorStore((s) => s.markDirty);
 
-  // Memoize extensions — only recreate when filePath changes
-  const extensions = useMemo(() => [
-    hybridMarkdown({
-      theme: "dark",
-      enablePreview: true,
-      enableKeymap: true,
-      enableCollapse: true,
-    }),
-    techtiteThemeOverride,
-    staticBlockquoteExt,
-    lineWrapping,
-    keymap.of([{
-      key: "Mod-s",
-      run: () => {
-        useEditorStore.getState().saveFile(tab.filePath);
-        return true;
-      },
-    }]),
-  ], [tab.filePath]);
+    // Fix B: After mount, set value to undefined so CodeMirror is uncontrolled
+    const [mounted, setMounted] = useState(false);
+    useEffect(() => { setMounted(true); }, []);
 
-  // Register EditorViewRef for store integration
-  useEffect(() => {
-    const ref: EditorViewRef = {
-      getContent: () => cmRef.current?.view?.state.doc.toString() ?? "",
-      setContent: (content: string) => {
-        const view = cmRef.current?.view;
-        if (view) {
-          view.dispatch({
-            changes: { from: 0, to: view.state.doc.length, insert: content },
-          });
-        }
-      },
-    };
-    registerEditor(tab.id, ref);
-    return () => { unregisterEditor(tab.id); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab.id]);
+    // Memoize extensions — only recreate when filePath changes
+    const extensions = useMemo(() => [
+      hybridMarkdown({
+        theme: "dark",
+        enablePreview: true,
+        enableKeymap: true,
+        enableCollapse: true,
+      }),
+      techtiteThemeOverride,
+      staticBlockquoteExt,
+      staticLineWrapping,
+      keymap.of([{
+        key: "Mod-s",
+        run: () => {
+          useEditorStore.getState().saveFile(tab.filePath);
+          return true;
+        },
+      }]),
+    ], [tab.filePath]);
 
-  // Handle content changes — only markDirty, no state updates that cause re-render
-  const handleChange = useCallback(() => {
-    markDirty(tab.filePath);
-  }, [markDirty, tab.filePath]);
+    // Register EditorViewRef for store integration
+    useEffect(() => {
+      const ref: EditorViewRef = {
+        getContent: () => cmRef.current?.view?.state.doc.toString() ?? "",
+        setContent: (content: string) => {
+          const view = cmRef.current?.view;
+          if (view) {
+            view.dispatch({
+              changes: { from: 0, to: view.state.doc.length, insert: content },
+            });
+          }
+        },
+      };
+      registerEditor(tab.id, ref);
+      return () => { unregisterEditor(tab.id); };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [tab.id]);
 
-  // Sync mode via imperative API (no re-render needed)
-  const isSourceMode = tab.viewMode === "source";
-  useEffect(() => {
-    const view = cmRef.current?.view;
-    if (view) {
-      setMode(view, isSourceMode ? "raw" : "hybrid");
-    }
-  }, [isSourceMode]);
+    const handleChange = useCallback(() => {
+      markDirty(tab.filePath);
+    }, [markDirty, tab.filePath]);
 
-  return (
-    <div className="flex flex-col h-full w-full">
-      {/* View mode toggle */}
-      <div className="flex items-center gap-2 px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#313244)]">
-        <span
-          className={!isSourceMode
-            ? "text-[var(--color-accent,#89b4fa)] font-semibold"
-            : "text-[var(--color-text-muted,#6c7086)] cursor-pointer hover:text-[var(--color-text-primary,#cdd6f4)]"}
-          onClick={() => {
-            if (isSourceMode) {
-              const view = cmRef.current?.view;
-              if (view) setMode(view, "hybrid");
-              useEditorStore.getState().setViewMode(tab.id, "livePreview");
-            }
-          }}
-        >
-          Live Preview
-        </span>
-        <span className="text-[var(--color-text-muted,#6c7086)]">/</span>
-        <span
-          className={isSourceMode
-            ? "text-[var(--color-accent,#89b4fa)] font-semibold"
-            : "text-[var(--color-text-muted,#6c7086)] cursor-pointer hover:text-[var(--color-text-primary,#cdd6f4)]"}
-          onClick={() => {
-            if (!isSourceMode) {
-              const view = cmRef.current?.view;
-              if (view) setMode(view, "raw");
-              useEditorStore.getState().setViewMode(tab.id, "source");
-            }
-          }}
-        >
-          Source
-        </span>
+    // Sync mode via imperative API (no re-render needed)
+    const isSourceMode = tab.viewMode === "source";
+    useEffect(() => {
+      const view = cmRef.current?.view;
+      if (view) {
+        setMode(view, isSourceMode ? "raw" : "hybrid");
+      }
+    }, [isSourceMode]);
+
+    return (
+      <div className="flex flex-col h-full w-full">
+        {/* View mode toggle */}
+        <div className="flex items-center gap-2 px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#313244)]">
+          <span
+            className={!isSourceMode
+              ? "text-[var(--color-accent,#89b4fa)] font-semibold"
+              : "text-[var(--color-text-muted,#6c7086)] cursor-pointer hover:text-[var(--color-text-primary,#cdd6f4)]"}
+            onClick={() => {
+              if (isSourceMode) {
+                const view = cmRef.current?.view;
+                if (view) setMode(view, "hybrid");
+                useEditorStore.getState().setViewMode(tab.id, "livePreview");
+              }
+            }}
+          >
+            Live Preview
+          </span>
+          <span className="text-[var(--color-text-muted,#6c7086)]">/</span>
+          <span
+            className={isSourceMode
+              ? "text-[var(--color-accent,#89b4fa)] font-semibold"
+              : "text-[var(--color-text-muted,#6c7086)] cursor-pointer hover:text-[var(--color-text-primary,#cdd6f4)]"}
+            onClick={() => {
+              if (!isSourceMode) {
+                const view = cmRef.current?.view;
+                if (view) setMode(view, "raw");
+                useEditorStore.getState().setViewMode(tab.id, "source");
+              }
+            }}
+          >
+            Source
+          </span>
+        </div>
+
+        {/* CodeMirror 6 editor */}
+        <div className="flex-1 overflow-auto">
+          <CodeMirror
+            ref={cmRef}
+            value={mounted ? undefined : initialContent}
+            height="100%"
+            theme="dark"
+            extensions={extensions}
+            onChange={handleChange}
+            basicSetup={staticBasicSetup}
+          />
+        </div>
       </div>
-
-      {/* CodeMirror 6 editor */}
-      <div className="flex-1 overflow-auto">
-        <CodeMirror
-          ref={cmRef}
-          value={initialContent}
-          height="100%"
-          theme="dark"
-          extensions={extensions}
-          onChange={handleChange}
-          basicSetup={{
-            lineNumbers: false,
-            foldGutter: false,
-            highlightActiveLine: true,
-            bracketMatching: true,
-            closeBrackets: true,
-            autocompletion: false,
-          }}
-        />
-      </div>
-    </div>
-  );
-}
+    );
+  },
+  // Custom comparator: only re-render when these actually change
+  (prev, next) =>
+    prev.tab.id === next.tab.id &&
+    prev.tab.filePath === next.tab.filePath &&
+    prev.tab.viewMode === next.tab.viewMode &&
+    prev.initialContent === next.initialContent
+);

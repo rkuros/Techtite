@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useEditorStore } from "@/stores/editor-store";
 import { invokeCommand } from "@/shared/utils/ipc";
 import type { FileType } from "@/types/file";
@@ -38,26 +38,25 @@ export function EditorContainer() {
     (s) => s.openTabs.find((t) => t.id === s.activeTabId)?.viewMode ?? null
   );
 
-  if (!activeTabId || !activeTabFilePath) {
+  // Memoize tab object — stable reference unless id/filePath/viewMode change
+  const tab = useMemo<TabState | null>(() => {
+    if (!activeTabId || !activeTabFilePath) return null;
+    return {
+      id: activeTabId,
+      filePath: activeTabFilePath,
+      viewMode: activeTabViewMode ?? "livePreview",
+      isDirty: false,
+      scrollPosition: 0,
+      cursorLine: 1,
+      cursorColumn: 1,
+    };
+  }, [activeTabId, activeTabFilePath, activeTabViewMode]);
+
+  if (!tab) {
     return <EmptyState />;
   }
 
-  // Construct a stable tab-like object for EditorPane
-  // Only re-renders when id, filePath, or viewMode actually change
-  return (
-    <EditorPane
-      key={activeTabId}
-      tab={{
-        id: activeTabId,
-        filePath: activeTabFilePath,
-        viewMode: activeTabViewMode ?? "livePreview",
-        isDirty: false, // not needed by EditorPane internals
-        scrollPosition: 0,
-        cursorLine: 1,
-        cursorColumn: 1,
-      }}
-    />
-  );
+  return <EditorPane key={tab.id} tab={tab} />;
 }
 
 // ---------------------------------------------------------------------------

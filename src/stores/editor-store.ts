@@ -245,17 +245,18 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   },
 
   markClean: (filePath: string) => {
+    // Single set() call to avoid double notification
     set((state) => {
-      const next = new Set(state.dirtyFiles);
-      next.delete(filePath);
-      return { dirtyFiles: next };
-    });
+      const nextDirty = new Set(state.dirtyFiles);
+      nextDirty.delete(filePath);
 
-    // Also mark the corresponding tab as clean
-    const tab = get().openTabs.find((t) => t.filePath === filePath);
-    if (tab) {
-      get().setTabDirty(tab.id, false);
-    }
+      const tab = state.openTabs.find((t) => t.filePath === filePath);
+      const nextTabs = tab && tab.isDirty
+        ? state.openTabs.map((t) => (t.id === tab.id ? { ...t, isDirty: false } : t))
+        : state.openTabs;
+
+      return { dirtyFiles: nextDirty, openTabs: nextTabs };
+    });
   },
 
   saveFile: async (filePath: string) => {
