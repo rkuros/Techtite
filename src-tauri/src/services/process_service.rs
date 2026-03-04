@@ -110,6 +110,8 @@ pub fn create_session(
     let mut cmd = CommandBuilder::new(&shell);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
+    // Remove CLAUDECODE env var so Claude Code can be launched from Techtite's terminal
+    cmd.env_remove("CLAUDECODE");
 
     // Spawn child on the slave side
     let child = pair
