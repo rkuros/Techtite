@@ -17,7 +17,6 @@ import { TerminalInstance } from "./TerminalInstance";
 export function TerminalPanel() {
   const terminals = useTerminalStore((s) => s.terminals);
   const activeTerminalId = useTerminalStore((s) => s.activeTerminalId);
-  const isVisible = useTerminalStore((s) => s.isTerminalPanelVisible);
   const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal);
   const createTerminal = useTerminalStore((s) => s.createTerminal);
   const closeTerminal = useTerminalStore((s) => s.closeTerminal);
@@ -69,10 +68,6 @@ export function TerminalPanel() {
     [closeTerminal]
   );
 
-  if (!isVisible) {
-    return null;
-  }
-
   return (
     <div className="flex flex-col h-full" style={{ minWidth: 250 }}>
       {/* Tab bar */}
@@ -85,6 +80,12 @@ export function TerminalPanel() {
           borderBottom: "1px solid var(--color-border-subtle)",
         }}
       >
+        <div
+          className="flex items-center px-2 text-xs shrink-0"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          Terminal
+        </div>
         <div className="flex items-center flex-1 overflow-x-auto">
           {terminals.map((session) => (
             <TerminalTab
