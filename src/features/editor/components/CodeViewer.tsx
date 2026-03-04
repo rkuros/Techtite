@@ -1,76 +1,113 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { languages } from "@codemirror/language-data";
+import { EditorView, keymap } from "@codemirror/view";
+import { EditorState } from "@codemirror/state";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
 
 // ---------------------------------------------------------------------------
-// NOTE: This is a textarea-based placeholder for the CodeMirror 6 read-only
-// code viewer.
-//
-// When @uiw/react-codemirror and language packages are installed, replace with:
-//
-//   import CodeMirror from "@uiw/react-codemirror";
-//   import { EditorView } from "@codemirror/view";
-//   import { EditorState } from "@codemirror/state";
-//
-// And dynamically load language extensions based on `language` prop:
-//   import { javascript } from "@codemirror/lang-javascript";
-//   import { python } from "@codemirror/lang-python";
-//   import { rust } from "@codemirror/lang-rust";
-//   ... etc.
-//
-// Use EditorState.readOnly.of(true) for read-only mode, and remove it when
-// the user toggles to edit mode.
+// Techtite dark theme (shared with MarkdownEditor)
+// ---------------------------------------------------------------------------
+const techtiteDarkTheme = EditorView.theme(
+  {
+    "&": {
+      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
+      color: "var(--color-text-primary, #e5e5ea)",
+      fontSize: "13px",
+      fontFamily:
+        "var(--font-mono, 'SF Mono', Monaco, Menlo, Consolas, monospace)",
+    },
+    ".cm-content": {
+      padding: "8px 16px",
+      caretColor: "var(--color-accent, #8b7ef0)",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "var(--color-accent, #8b7ef0)",
+    },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+      backgroundColor: "rgba(139, 126, 240, 0.2)",
+    },
+    ".cm-gutters": {
+      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
+      color: "var(--color-text-muted, #8e8e93)",
+      border: "none",
+      paddingRight: "8px",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+  },
+  { dark: true }
+);
+
+// ---------------------------------------------------------------------------
+// Language extension resolver
+// ---------------------------------------------------------------------------
+function getLanguageDescription(lang: string) {
+  const lower = lang.toLowerCase();
+  return languages.find(
+    (l) =>
+      l.name.toLowerCase() === lower ||
+      l.alias.some((a) => a.toLowerCase() === lower) ||
+      l.extensions.some((e) => e === `.${lower}`)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
 // ---------------------------------------------------------------------------
 
 interface CodeViewerProps {
-  /** The tab state for this viewer. */
   tab: TabState;
-  /** The initial file content loaded from disk. */
   initialContent: string;
-  /** The programming language identifier (e.g. "typescript", "python"). */
   language: string;
 }
 
-/**
- * CodeViewer — Read-only code file viewer with syntax highlighting placeholder.
- *
- * Responsibilities:
- * - Display code files with line numbers (placeholder: pre-formatted textarea).
- * - Default to read-only mode with a lock indicator.
- * - Toggle to edit mode on user request.
- * - When in edit mode, allow saving with Ctrl/Cmd+S.
- *
- * US-2.6: Code file viewing with syntax highlighting, line numbers, read-only default.
- */
 export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const cmRef = useRef<ReactCodeMirrorRef>(null);
   const [isEditable, setIsEditable] = useState(false);
-  const {
-    registerEditor,
-    unregisterEditor,
-    markDirty,
-    saveFile,
-  } = useEditorStore();
+  const { registerEditor, unregisterEditor, markDirty } =
+    useEditorStore();
 
-  // -------------------------------------------------------------------------
-  // Line numbers (computed from content)
-  // -------------------------------------------------------------------------
-  const [lineCount, setLineCount] = useState(1);
+  // Build extensions (including language support)
+  const extensions = useMemo(() => {
+    const exts: import("@codemirror/state").Extension[] = [
+      EditorView.lineWrapping,
+      keymap.of([
+        {
+          key: "Mod-s",
+          run: () => {
+            if (isEditable) useEditorStore.getState().saveFile(tab.filePath);
+            return true;
+          },
+        },
+      ]),
+    ];
+    if (!isEditable) {
+      exts.push(EditorState.readOnly.of(true));
+    }
+    // Add language support if available
+    const desc = getLanguageDescription(language);
+    if (desc?.support) {
+      exts.push(desc.support);
+    }
+    return exts;
+  }, [isEditable, tab.filePath, language]);
 
-  useEffect(() => {
-    setLineCount(initialContent.split("\n").length);
-  }, [initialContent]);
-
-  // -------------------------------------------------------------------------
-  // Register editor instance with the store
-  // -------------------------------------------------------------------------
+  // Register EditorViewRef
   useEffect(() => {
     const ref: EditorViewRef = {
-      getContent: () => textareaRef.current?.value ?? "",
+      getContent: () => cmRef.current?.view?.state.doc.toString() ?? "",
       setContent: (content: string) => {
-        if (textareaRef.current) {
-          textareaRef.current.value = content;
-          setLineCount(content.split("\n").length);
+        const view = cmRef.current?.view;
+        if (view) {
+          view.dispatch({
+            changes: { from: 0, to: view.state.doc.length, insert: content },
+          });
         }
       },
     };
@@ -82,109 +119,53 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id]);
 
-  // -------------------------------------------------------------------------
-  // Set initial content
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.value = initialContent;
-    }
-  }, [initialContent]);
-
-  // -------------------------------------------------------------------------
-  // Handlers
-  // -------------------------------------------------------------------------
   const handleChange = useCallback(() => {
-    if (!isEditable) return;
-    markDirty(tab.filePath);
-    if (textareaRef.current) {
-      setLineCount(textareaRef.current.value.split("\n").length);
-    }
+    if (isEditable) markDirty(tab.filePath);
   }, [isEditable, markDirty, tab.filePath]);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        saveFile(tab.filePath);
-      }
-    },
-    [saveFile, tab.filePath]
-  );
 
   const toggleEditMode = useCallback(() => {
     const willEdit = !isEditable;
     setIsEditable(willEdit);
-    if (willEdit) {
-      useEditorStore.getState().setViewMode(tab.id, "source");
-    } else {
-      useEditorStore.getState().setViewMode(tab.id, "readOnly");
-    }
+    useEditorStore
+      .getState()
+      .setViewMode(tab.id, willEdit ? "source" : "readOnly");
   }, [isEditable, tab.id]);
 
   return (
     <div className="flex flex-col h-full w-full">
-      {/* Toolbar: language label + lock/unlock toggle */}
-      <div className="flex items-center justify-between px-4 py-1 text-xs border-b border-[var(--border,#2a2a2f)]">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#2a2a2f)]">
         <div className="flex items-center gap-2">
-          <span className="text-[var(--accent,#8b7ef0)] font-semibold uppercase tracking-wider">
+          <span className="text-[var(--color-accent,#8b7ef0)] font-semibold uppercase tracking-wider">
             {language}
-          </span>
-          <span className="text-[var(--text-muted,#8e8e93)]">
-            {lineCount} lines
           </span>
         </div>
         <button
           onClick={toggleEditMode}
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[var(--text-muted,#8e8e93)] hover:text-[var(--text,#e5e5ea)] hover:bg-[var(--bg-sidebar,#252528)] transition-colors"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[var(--color-text-muted,#8e8e93)] hover:text-[var(--color-text-primary,#e5e5ea)] hover:bg-[var(--color-bg-surface,#252528)] transition-colors"
           title={isEditable ? "Lock (read-only)" : "Unlock (edit)"}
         >
-          {/* Lock/Unlock icon (text-based placeholder) */}
           <span className="text-base">{isEditable ? "\u{1F513}" : "\u{1F512}"}</span>
           <span>{isEditable ? "Editing" : "Read Only"}</span>
         </button>
       </div>
 
-      {/* Code content area with line numbers */}
-      <div className="flex flex-1 overflow-auto bg-[var(--bg-base,#1c1c1e)]">
-        {/* Line numbers gutter */}
-        <div
-          className="flex-shrink-0 text-right pr-3 pl-3 pt-2 select-none text-[var(--text-muted,#8e8e93)] font-[var(--mono,'SF_Mono',Monaco,Menlo,Consolas,monospace)] text-xs leading-[1.6]"
-          style={{ minWidth: "3rem" }}
-        >
-          {Array.from({ length: lineCount }, (_, i) => (
-            <div key={i + 1}>{i + 1}</div>
-          ))}
-        </div>
-
-        {/*
-          Placeholder textarea. When CodeMirror 6 is integrated, replace with:
-
-            <CodeMirror
-              value={initialContent}
-              height="100%"
-              theme={techtiteTheme}
-              readOnly={!isEditable}
-              extensions={[
-                getLanguageExtension(language),
-                EditorView.lineWrapping,
-              ]}
-              onChange={(value) => {
-                if (isEditable) markDirty(tab.filePath);
-              }}
-            />
-        */}
-        <textarea
-          ref={textareaRef}
-          className="flex-1 resize-none outline-none bg-transparent text-[var(--text,#e5e5ea)] font-[var(--mono,'SF_Mono',Monaco,Menlo,Consolas,monospace)] text-xs leading-[1.6] pt-2 pr-4"
-          readOnly={!isEditable}
+      {/* CodeMirror 6 code viewer */}
+      <div className="flex-1 overflow-auto">
+        <CodeMirror
+          ref={cmRef}
+          value={initialContent}
+          height="100%"
+          theme={techtiteDarkTheme}
+          extensions={extensions}
           onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          spellCheck={false}
-          style={{
-            caretColor: isEditable
-              ? "var(--accent, #8b7ef0)"
-              : "transparent",
+          basicSetup={{
+            lineNumbers: true,
+            foldGutter: true,
+            highlightActiveLine: true,
+            bracketMatching: true,
+            closeBrackets: isEditable,
+            autocompletion: false,
           }}
         />
       </div>

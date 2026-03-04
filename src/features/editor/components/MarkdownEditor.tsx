@@ -1,60 +1,107 @@
 import { useCallback, useEffect, useRef } from "react";
+import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
+import { EditorView, keymap } from "@codemirror/view";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
 
 // ---------------------------------------------------------------------------
-// NOTE: This is a textarea-based placeholder for the CodeMirror 6 editor.
-//
-// When @uiw/react-codemirror and @codemirror/* packages are installed, replace
-// the <textarea> with:
-//
-//   import CodeMirror from "@uiw/react-codemirror";
-//   import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
-//   import { languages } from "@codemirror/language-data";
-//   import { EditorView } from "@codemirror/view";
-//   import { livePreviewExtension } from "../extensions/live-preview";
-//   import { internalLinkExtension } from "../extensions/internal-link";
-//   import { tagHighlightExtension } from "../extensions/tag-highlight";
-//   import { imagePreviewExtension } from "../extensions/image-preview";
-//
-// And wire the extensions into the CodeMirror <CodeMirror extensions={[...]} />
+// Techtite dark theme for CodeMirror
+// ---------------------------------------------------------------------------
+const techtiteDarkTheme = EditorView.theme(
+  {
+    "&": {
+      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
+      color: "var(--color-text-primary, #e5e5ea)",
+      fontSize: "14px",
+      fontFamily:
+        "var(--font-mono, 'SF Mono', Monaco, Menlo, Consolas, monospace)",
+    },
+    ".cm-content": {
+      padding: "32px 60px",
+      caretColor: "var(--color-accent, #8b7ef0)",
+    },
+    ".cm-cursor": {
+      borderLeftColor: "var(--color-accent, #8b7ef0)",
+    },
+    "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+      backgroundColor: "rgba(139, 126, 240, 0.2)",
+    },
+    ".cm-gutters": {
+      backgroundColor: "var(--color-bg-primary, #1c1c1e)",
+      color: "var(--color-text-muted, #8e8e93)",
+      border: "none",
+    },
+    ".cm-activeLine": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    ".cm-activeLineGutter": {
+      backgroundColor: "rgba(255, 255, 255, 0.03)",
+    },
+    // Markdown heading styles
+    ".cm-header-1": {
+      fontSize: "1.6em",
+      fontWeight: "700",
+      color: "var(--color-accent, #8b7ef0)",
+    },
+    ".cm-header-2": {
+      fontSize: "1.4em",
+      fontWeight: "600",
+      color: "var(--color-accent, #8b7ef0)",
+    },
+    ".cm-header-3": {
+      fontSize: "1.2em",
+      fontWeight: "600",
+      color: "var(--color-accent, #8b7ef0)",
+    },
+  },
+  { dark: true }
+);
+
+// ---------------------------------------------------------------------------
+// Ctrl/Cmd+S save keymap
+// ---------------------------------------------------------------------------
+function makeSaveKeymap(filePath: string) {
+  return keymap.of([
+    {
+      key: "Mod-s",
+      run: () => {
+        useEditorStore.getState().saveFile(filePath);
+        return true;
+      },
+    },
+  ]);
+}
+
+// ---------------------------------------------------------------------------
+// Component
 // ---------------------------------------------------------------------------
 
 interface MarkdownEditorProps {
-  /** The tab state (from editor-store) that this editor belongs to. */
   tab: TabState;
-  /** Initial file content loaded from disk. */
   initialContent: string;
 }
 
-/**
- * MarkdownEditor — CodeMirror 6 based Live Preview editor (textarea placeholder).
- *
- * Responsibilities:
- * - Display and edit Markdown content.
- * - Register an EditorViewRef so the store can read/write content.
- * - Mark the file dirty on edits.
- * - Support view mode switching (livePreview / source — both behave the same in placeholder).
- * - Keyboard shortcut: Ctrl/Cmd+S to save.
- */
 export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const {
-    registerEditor,
-    unregisterEditor,
-    markDirty,
-    saveFile,
-  } = useEditorStore();
+  const cmRef = useRef<ReactCodeMirrorRef>(null);
+  const { registerEditor, unregisterEditor, markDirty } = useEditorStore();
 
-  // -------------------------------------------------------------------------
-  // Register this editor instance with the store so save/reload can interact.
-  // -------------------------------------------------------------------------
+  // Register EditorViewRef for store integration
   useEffect(() => {
     const ref: EditorViewRef = {
-      getContent: () => textareaRef.current?.value ?? "",
+      getContent: () =>
+        cmRef.current?.view?.state.doc.toString() ?? "",
       setContent: (content: string) => {
-        if (textareaRef.current) {
-          textareaRef.current.value = content;
+        const view = cmRef.current?.view;
+        if (view) {
+          view.dispatch({
+            changes: {
+              from: 0,
+              to: view.state.doc.length,
+              insert: content,
+            },
+          });
         }
       },
     };
@@ -63,114 +110,74 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
     return () => {
       unregisterEditor(tab.id);
     };
-    // Only run on mount/unmount for this tab
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id]);
 
-  // -------------------------------------------------------------------------
-  // Set initial content when the editor mounts
-  // -------------------------------------------------------------------------
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.value = initialContent;
-    }
-  }, [initialContent]);
-
-  // -------------------------------------------------------------------------
-  // Mark dirty on change
-  // -------------------------------------------------------------------------
   const handleChange = useCallback(() => {
     markDirty(tab.filePath);
   }, [markDirty, tab.filePath]);
 
-  // -------------------------------------------------------------------------
-  // Keyboard shortcut: Ctrl/Cmd+S to save
-  // -------------------------------------------------------------------------
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        saveFile(tab.filePath);
-      }
-    },
-    [saveFile, tab.filePath]
-  );
-
-  // Determine if we are in source mode (show raw) or livePreview
   const isSourceMode = tab.viewMode === "source";
 
   return (
     <div className="flex flex-col h-full w-full">
-      {/* View mode indicator */}
-      <div className="flex items-center gap-2 px-4 py-1 text-xs border-b border-[var(--border,#2a2a2f)]">
+      {/* View mode toggle */}
+      <div className="flex items-center gap-2 px-4 py-1 text-xs border-b border-[var(--color-border-subtle,#2a2a2f)]">
         <span
-          className={`${
+          className={
             !isSourceMode
-              ? "text-[var(--accent,#8b7ef0)] font-semibold"
-              : "text-[var(--text-muted,#8e8e93)] cursor-pointer hover:text-[var(--text,#e5e5ea)]"
-          }`}
+              ? "text-[var(--color-accent,#8b7ef0)] font-semibold"
+              : "text-[var(--color-text-muted,#8e8e93)] cursor-pointer hover:text-[var(--color-text-primary,#e5e5ea)]"
+          }
           onClick={() => {
-            if (isSourceMode) {
+            if (isSourceMode)
               useEditorStore.getState().setViewMode(tab.id, "livePreview");
-            }
           }}
         >
           Live Preview
         </span>
-        <span className="text-[var(--text-muted,#8e8e93)]">/</span>
+        <span className="text-[var(--color-text-muted,#8e8e93)]">/</span>
         <span
-          className={`${
+          className={
             isSourceMode
-              ? "text-[var(--accent,#8b7ef0)] font-semibold"
-              : "text-[var(--text-muted,#8e8e93)] cursor-pointer hover:text-[var(--text,#e5e5ea)]"
-          }`}
+              ? "text-[var(--color-accent,#8b7ef0)] font-semibold"
+              : "text-[var(--color-text-muted,#8e8e93)] cursor-pointer hover:text-[var(--color-text-primary,#e5e5ea)]"
+          }
           onClick={() => {
-            if (!isSourceMode) {
+            if (!isSourceMode)
               useEditorStore.getState().setViewMode(tab.id, "source");
-            }
           }}
         >
           Source
         </span>
       </div>
 
-      {/*
-        Placeholder textarea. When CodeMirror 6 is integrated, replace this
-        entire <textarea> block with:
-
-          <CodeMirror
-            value={initialContent}
-            height="100%"
-            theme={techtiteTheme}
-            extensions={[
-              markdown({ base: markdownLanguage, codeLanguages: languages }),
-              livePreviewExtension(),
-              internalLinkExtension(),
-              tagHighlightExtension(),
-              imagePreviewExtension(),
-            ]}
-            onChange={(value) => { markDirty(tab.filePath); }}
-            onCreateEditor={(view) => {
-              registerEditor(tab.id, {
-                getContent: () => view.state.doc.toString(),
-                setContent: (c) => {
-                  view.dispatch({
-                    changes: { from: 0, to: view.state.doc.length, insert: c },
-                  });
-                },
-              });
-            }}
-          />
-      */}
-      <textarea
-        ref={textareaRef}
-        className="flex-1 w-full resize-none outline-none bg-[var(--bg-base,#1c1c1e)] text-[var(--text,#e5e5ea)] font-[var(--mono,'SF_Mono',Monaco,Menlo,Consolas,monospace)] text-sm leading-relaxed"
-        style={{ padding: "32px 60px" }}
-        onChange={handleChange}
-        onKeyDown={handleKeyDown}
-        spellCheck={false}
-        placeholder="Start writing..."
-      />
+      {/* CodeMirror 6 editor */}
+      <div className="flex-1 overflow-auto">
+        <CodeMirror
+          ref={cmRef}
+          value={initialContent}
+          height="100%"
+          theme={techtiteDarkTheme}
+          extensions={[
+            markdown({
+              base: markdownLanguage,
+              codeLanguages: languages,
+            }),
+            EditorView.lineWrapping,
+            makeSaveKeymap(tab.filePath),
+          ]}
+          onChange={handleChange}
+          basicSetup={{
+            lineNumbers: false,
+            foldGutter: false,
+            highlightActiveLine: true,
+            bracketMatching: true,
+            closeBrackets: true,
+            autocompletion: false,
+          }}
+        />
+      </div>
     </div>
   );
 }

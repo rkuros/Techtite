@@ -92,6 +92,9 @@ interface EditorStoreState {
 
 let tabCounter = 0;
 
+// Debounced auto-save timers (per file path)
+const autoSaveTimers = new Map<string, number>();
+
 export const useEditorStore = create<EditorStoreState>((set, get) => ({
   // =========================================================================
   // Unit 1 base slice — state
@@ -212,6 +215,18 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
     if (tab) {
       get().setTabDirty(tab.id, true);
     }
+
+    // Debounced auto-save (1500ms)
+    if (autoSaveTimers.has(filePath)) {
+      clearTimeout(autoSaveTimers.get(filePath)!);
+    }
+    autoSaveTimers.set(
+      filePath,
+      window.setTimeout(() => {
+        autoSaveTimers.delete(filePath);
+        get().saveFile(filePath);
+      }, 1500)
+    );
   },
 
   markClean: (filePath: string) => {
