@@ -184,6 +184,7 @@ export function MarkdownEditor({ tab, initialContent }: MarkdownEditorProps) {
           ref={cmRef}
           value={initialContent}
           height="100%"
+          theme="dark"
           extensions={[
             hybridMarkdown({
               theme: "dark",

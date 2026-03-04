@@ -68,3 +68,25 @@ html, body, #root {
 ::selection {
   background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);
 }
+
+/* CodeMirror theme overrides — ensure dark background matches app */
+.cm-editor {
+  background-color: var(--color-editor-bg) !important;
+}
+.cm-editor .cm-scroller {
+  background-color: var(--color-editor-bg) !important;
+}
+.cm-editor .cm-content {
+  caret-color: var(--color-accent) !important;
+}
+.cm-editor .cm-gutters {
+  background-color: var(--color-editor-bg) !important;
+  border-right: none !important;
+}
+.cm-editor .cm-activeLine {
+  background-color: rgba(205, 214, 244, 0.03) !important;
+}
+.cm-editor.cm-focused .cm-selectionBackground,
+.cm-editor .cm-selectionBackground {
+  background-color: rgba(137, 180, 250, 0.2) !important;
+}
