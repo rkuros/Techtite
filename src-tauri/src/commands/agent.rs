@@ -55,8 +55,9 @@ pub fn agent_start(
             .initial_prompt
             .as_ref()
             .map(|p| {
-                if p.len() > 100 {
-                    format!("{}...", &p[..97])
+                let truncated: String = p.chars().take(97).collect();
+                if truncated.len() < p.len() {
+                    format!("{}...", truncated)
                 } else {
                     p.clone()
                 }

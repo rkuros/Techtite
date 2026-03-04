@@ -213,8 +213,9 @@ pub fn parse_stream_json_line(
                 .and_then(|v| v.as_str())
                 .map(|s| {
                     // Truncate to reasonable length for display
-                    if s.len() > 200 {
-                        format!("{}...", &s[..197])
+                    let truncated: String = s.chars().take(197).collect();
+                    if truncated.len() < s.len() {
+                        format!("{}...", truncated)
                     } else {
                         s.to_string()
                     }

@@ -147,12 +147,14 @@ fn search_file(
             let highlight_end = (pos + query.len()) as u32;
 
             // Build context (the matched line, trimmed if too long)
-            let context = if line.len() > 200 {
-                let start = pos.saturating_sub(50);
-                let end = (pos + query.len() + 50).min(line.len());
-                format!("...{}...", &line[start..end])
-            } else {
-                line.to_string()
+            // Use char-safe truncation for multibyte (e.g. Japanese) text
+            let context = {
+                let truncated: String = line.chars().take(200).collect();
+                if truncated.len() < line.len() {
+                    format!("{}...", truncated)
+                } else {
+                    line.to_string()
+                }
             };
 
             results.push(KeywordSearchResult {

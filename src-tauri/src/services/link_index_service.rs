@@ -121,8 +121,10 @@ fn extract_context(content: &str, line_number: u32) -> String {
     let idx = (line_number as usize).saturating_sub(1);
     if idx < lines.len() {
         let line = lines[idx];
-        if line.len() > 120 {
-            format!("{}...", &line[..120])
+        // Use char boundary-safe truncation for multibyte (e.g. Japanese) text
+        let truncated: String = line.chars().take(120).collect();
+        if truncated.len() < line.len() {
+            format!("{}...", truncated)
         } else {
             line.to_string()
         }
@@ -254,10 +256,13 @@ pub fn get_unlinked_mentions(
                     mentions.push(BacklinkEntry {
                         source_path: known_path.clone(),
                         line_number,
-                        context: if line.len() > 120 {
-                            format!("{}...", &line[..120])
-                        } else {
-                            line.to_string()
+                        context: {
+                            let truncated: String = line.chars().take(120).collect();
+                            if truncated.len() < line.len() {
+                                format!("{}...", truncated)
+                            } else {
+                                line.to_string()
+                            }
                         },
                     });
                 }
