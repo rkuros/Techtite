@@ -14,11 +14,15 @@ import { PaneContainer } from "./PaneContainer";
 import { StatusBar } from "./StatusBar";
 import { WelcomeScreen } from "./WelcomeScreen";
 
-// Lazy-loaded sidebar panels (actual components from each Unit)
+// Sidebar panels (actual components from each Unit)
 import { FileExplorer } from "@/features/file-management";
-import { SearchPanel } from "@/features/knowledge";
-import { GitPanel } from "@/features/git";
+import { SearchPanel, BacklinksPage, TagsPage, GraphView } from "@/features/knowledge";
+import { GitPanel, SyncStatus } from "@/features/git";
 import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
+import { AgentsDashboard, AgentCountBadge } from "@/features/terminal";
+import { LogsPanel } from "@/features/reliability";
+import { PublishPanel } from "@/features/publishing";
+import { CostStatusBadge } from "@/features/guardrails";
 import { AIChat, RAGStatusIndicator } from "@/features/semantic-search";
 
 export function AppLayout() {
@@ -104,7 +108,16 @@ export function AppLayout() {
       </div>
 
       {/* Status Bar */}
-      <StatusBar rightSlot={<RAGStatusIndicator />} />
+      <StatusBar
+        leftSlot={<SyncStatus />}
+        rightSlot={
+          <>
+            <RAGStatusIndicator />
+            <AgentCountBadge />
+            <CostStatusBadge />
+          </>
+        }
+      />
 
       {/* Floating AI Chat */}
       <AIChat />
@@ -119,8 +132,20 @@ function SidebarContent({ panel }: { panel: string }) {
       return <FileExplorer />;
     case SIDEBAR_PANELS.SEARCH:
       return <SearchPanel />;
+    case SIDEBAR_PANELS.BACKLINKS:
+      return <BacklinksPage />;
+    case SIDEBAR_PANELS.TAGS:
+      return <TagsPage />;
+    case SIDEBAR_PANELS.GRAPH:
+      return <GraphView />;
     case SIDEBAR_PANELS.GIT:
       return <GitPanel />;
+    case SIDEBAR_PANELS.AGENTS:
+      return <AgentsDashboard />;
+    case SIDEBAR_PANELS.LOGS:
+      return <LogsPanel />;
+    case SIDEBAR_PANELS.PUBLISH:
+      return <PublishPanel />;
     default:
       return <SidebarPlaceholder panel={panel} />;
   }
@@ -128,12 +153,6 @@ function SidebarContent({ panel }: { panel: string }) {
 
 function SidebarPlaceholder({ panel }: { panel: string }) {
   const labels: Record<string, string> = {
-    backlinks: "Backlinks",
-    tags: "Tags",
-    graph: "Graph View",
-    agents: "Agents Dashboard",
-    logs: "Logs",
-    publish: "Publish",
     settings: "Settings",
   };
 
