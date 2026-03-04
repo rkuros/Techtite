@@ -33,6 +33,11 @@ pub fn start_watching(
     vault_root: PathBuf,
     state: Arc<Mutex<WatcherState>>,
 ) -> Result<(), String> {
+    // Stop existing watcher if any (prevents duplicate watchers on re-open)
+    if let Ok(mut s) = state.lock() {
+        s.watcher = None;
+    }
+
     let vault_root_clone = vault_root.clone();
 
     let mut watcher = RecommendedWatcher::new(

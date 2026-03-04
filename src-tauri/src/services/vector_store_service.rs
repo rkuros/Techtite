@@ -63,6 +63,14 @@ impl Default for VectorStoreState {
 ///
 /// Creates `<vault_path>/.techtite/vector_store.db` with the chunks table.
 pub fn init_db(state: &VectorStoreState, vault_path: &std::path::Path) -> Result<(), String> {
+    // Skip if already initialized
+    {
+        let db_guard = state.db.lock().map_err(|e| e.to_string())?;
+        if db_guard.is_some() {
+            return Ok(());
+        }
+    }
+
     let db_dir = vault_path.join(".techtite");
     std::fs::create_dir_all(&db_dir)
         .map_err(|e| format!("Failed to create .techtite directory: {}", e))?;
