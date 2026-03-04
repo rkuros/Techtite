@@ -30,7 +30,9 @@ export default defineConfig(async () => ({
         }
       : undefined,
     watch: {
-      ignored: ["**/src-tauri/**"],
+      // Only watch src/ and index.html — ignore everything else
+      // Prevents page reload when vault files (.md, .techtite/) are modified
+      ignored: ["**/src-tauri/**", "**/.techtite/**", "**/node_modules/**", "**/aidlc-docs/**", "**/*.md", "**/target/**"],
     },
   },
 
