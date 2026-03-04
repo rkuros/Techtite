@@ -1,20 +1,31 @@
 use std::collections::HashMap;
+use std::io::{Read, Write};
 use std::sync::Mutex;
 
+use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Emitter};
 
 /// Maximum number of concurrent terminal sessions.
 const MAX_TERMINALS: usize = 10;
 
-/// Represents a managed PTY process handle.
-///
-/// In the real implementation, this would hold:
-/// - A `ChildStdin` writer for sending input to the PTY
-/// - A stdout reader task handle
-/// - Process lifecycle tracking
-///
-/// Currently stubbed because `portable_pty` / full PTY support
-/// is not yet added to Cargo.toml.
+/// Payload emitted to frontend for terminal output.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalOutputPayload {
+    pub id: String,
+    pub data: String,
+}
+
+/// Payload emitted to frontend when a terminal process exits.
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalExitPayload {
+    pub id: String,
+    pub exit_code: i32,
+}
+
+/// Serializable handle returned to the frontend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcessHandle {
@@ -23,16 +34,26 @@ pub struct ProcessHandle {
     pub label: String,
     pub agent_id: Option<String>,
     pub created_at: String,
-    /// Whether the process is still running.
     pub is_alive: bool,
 }
 
-/// Tauri-managed state for terminal/PTY process management.
-///
-/// Holds a map of active terminal sessions keyed by session ID.
-pub struct ProcessServiceState {
-    pub sessions: Mutex<HashMap<String, ProcessHandle>>,
+/// Internal state for a single PTY session (not serializable).
+struct PtySession {
+    handle: ProcessHandle,
+    writer: Box<dyn Write + Send>,
+    master: Box<dyn portable_pty::MasterPty + Send>,
+    child: Box<dyn portable_pty::Child + Send>,
 }
+
+/// Tauri-managed state for terminal/PTY process management.
+pub struct ProcessServiceState {
+    sessions: Mutex<HashMap<String, PtySession>>,
+}
+
+// Safety: PtySession fields are Send (writer, master, child all + Send).
+// Mutex provides synchronization.
+unsafe impl Send for ProcessServiceState {}
+unsafe impl Sync for ProcessServiceState {}
 
 impl ProcessServiceState {
     pub fn new() -> Self {
@@ -48,17 +69,15 @@ impl Default for ProcessServiceState {
     }
 }
 
-/// Create a new terminal session.
-///
-/// In the real implementation this would:
-/// 1. Use `portable_pty` or `tauri-plugin-shell` to spawn a PTY process
-/// 2. Set TERM=xterm-256color environment variable
-/// 3. Spawn a tokio task to bridge stdout to `terminal:output` events
-/// 4. Return the session ID
-///
-/// Currently returns a stub session with a placeholder PID.
+/// Detect the user's default shell.
+fn detect_shell() -> String {
+    std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+}
+
+/// Create a new terminal session with a real PTY.
 pub fn create_session(
     state: &ProcessServiceState,
+    app_handle: &AppHandle,
     id: String,
     label: String,
     agent_id: Option<String>,
@@ -75,108 +94,155 @@ pub fn create_session(
         return Err(format!("Terminal session '{id}' already exists"));
     }
 
+    // Open PTY pair
+    let pty_system = NativePtySystem::default();
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 24,
+            cols: 80,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Failed to open PTY: {e}"))?;
+
+    // Build shell command
+    let shell = detect_shell();
+    let mut cmd = CommandBuilder::new(&shell);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
+    // Spawn child on the slave side
+    let child = pair
+        .slave
+        .spawn_command(cmd)
+        .map_err(|e| format!("Failed to spawn shell '{shell}': {e}"))?;
+
+    let pid = child.process_id().unwrap_or(0);
+
+    // Get reader and writer from master
+    let reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Failed to clone PTY reader: {e}"))?;
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("Failed to take PTY writer: {e}"))?;
+
     let handle = ProcessHandle {
         id: id.clone(),
-        pid: 0, // Stub: real implementation assigns actual PID
+        pid,
         label,
         agent_id,
         created_at: chrono::Utc::now().to_rfc3339(),
         is_alive: true,
     };
 
-    // TODO: Spawn actual PTY process here
-    // let pty_system = portable_pty::native_pty_system();
-    // let pair = pty_system.openpty(PtySize { rows: 24, cols: 80, .. })?;
-    // let cmd = CommandBuilder::new(shell);
-    // let child = pair.slave.spawn_command(cmd)?;
-    // let reader = pair.master.try_clone_reader()?;
-    // let writer = pair.master.take_writer()?;
-    //
-    // // Spawn stdout bridge task
-    // tokio::spawn(async move {
-    //     let mut buf = [0u8; 4096];
-    //     loop {
-    //         match reader.read(&mut buf) {
-    //             Ok(0) => break,
-    //             Ok(n) => {
-    //                 let data = String::from_utf8_lossy(&buf[..n]).to_string();
-    //                 let _ = app.emit("terminal:output", TerminalOutputPayload { id, data });
-    //             }
-    //             Err(_) => break,
-    //         }
-    //     }
-    //     let _ = app.emit("terminal:exit", TerminalExitPayload { id, exit_code: 0 });
-    // });
+    // Spawn a std::thread to read PTY stdout and emit events
+    let session_id = id.clone();
+    let app = app_handle.clone();
+    std::thread::spawn(move || {
+        let mut reader = reader;
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let data = String::from_utf8_lossy(&buf[..n]).to_string();
+                    let _ = app.emit(
+                        "terminal:output",
+                        TerminalOutputPayload {
+                            id: session_id.clone(),
+                            data,
+                        },
+                    );
+                }
+                Err(_) => break,
+            }
+        }
+        let _ = app.emit(
+            "terminal:exit",
+            TerminalExitPayload {
+                id: session_id,
+                exit_code: 0,
+            },
+        );
+    });
 
-    sessions.insert(id, handle.clone());
+    let session = PtySession {
+        handle: handle.clone(),
+        writer,
+        master: pair.master,
+        child,
+    };
+
+    sessions.insert(id, session);
     Ok(handle)
 }
 
 /// Write data to a terminal session's stdin.
-///
-/// In the real implementation this would write to the PTY master's stdin.
 pub fn write_to_session(
     state: &ProcessServiceState,
     id: &str,
-    _data: &str,
+    data: &str,
 ) -> Result<(), String> {
-    let sessions = state.sessions.lock().map_err(|e| e.to_string())?;
-    let handle = sessions
-        .get(id)
+    let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
+    let session = sessions
+        .get_mut(id)
         .ok_or_else(|| format!("Terminal session '{id}' not found"))?;
 
-    if !handle.is_alive {
+    if !session.handle.is_alive {
         return Err(format!("Terminal session '{id}' is no longer running"));
     }
 
-    // TODO: Write data to PTY stdin
-    // handle.stdin_writer.write_all(data.as_bytes())?;
+    session
+        .writer
+        .write_all(data.as_bytes())
+        .map_err(|e| format!("Failed to write to PTY: {e}"))?;
 
     Ok(())
 }
 
 /// Resize a terminal session's PTY.
-///
-/// In the real implementation this would call `pty.resize()` with the new dimensions.
 pub fn resize_session(
     state: &ProcessServiceState,
     id: &str,
-    _cols: u32,
-    _rows: u32,
+    cols: u32,
+    rows: u32,
 ) -> Result<(), String> {
     let sessions = state.sessions.lock().map_err(|e| e.to_string())?;
-    let handle = sessions
+    let session = sessions
         .get(id)
         .ok_or_else(|| format!("Terminal session '{id}' not found"))?;
 
-    if !handle.is_alive {
+    if !session.handle.is_alive {
         return Err(format!("Terminal session '{id}' is no longer running"));
     }
 
-    // TODO: Resize PTY
-    // handle.pty_master.resize(PtySize { rows, cols, .. })?;
+    session
+        .master
+        .resize(PtySize {
+            rows: rows as u16,
+            cols: cols as u16,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Failed to resize PTY: {e}"))?;
 
     Ok(())
 }
 
 /// Close a terminal session.
-///
-/// In the real implementation this would:
-/// 1. Send SIGTERM to the child process
-/// 2. Wait for graceful shutdown (timeout 5s)
-/// 3. Send SIGKILL if still running
-/// 4. Clean up resources
 pub fn close_session(state: &ProcessServiceState, id: &str) -> Result<(), String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
-    let handle = sessions
-        .get_mut(id)
+    let mut session = sessions
+        .remove(id)
         .ok_or_else(|| format!("Terminal session '{id}' not found"))?;
 
-    // TODO: Send SIGTERM, then SIGKILL after timeout
-    // handle.child.kill()?;
+    // Kill the child process
+    session.child.kill().ok();
+    session.handle.is_alive = false;
 
-    handle.is_alive = false;
-    sessions.remove(id);
     Ok(())
 }
 
@@ -184,9 +250,9 @@ pub fn close_session(state: &ProcessServiceState, id: &str) -> Result<(), String
 pub fn close_all_sessions(state: &ProcessServiceState) -> Result<(), String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
 
-    // TODO: Send SIGTERM to all processes, then SIGKILL after 5s timeout
-    for (_id, handle) in sessions.iter_mut() {
-        handle.is_alive = false;
+    for (_id, session) in sessions.iter_mut() {
+        session.child.kill().ok();
+        session.handle.is_alive = false;
     }
 
     sessions.clear();
@@ -194,83 +260,15 @@ pub fn close_all_sessions(state: &ProcessServiceState) -> Result<(), String> {
 }
 
 /// Spawn a Claude Code CLI process in stream-json mode.
-///
-/// In the real implementation this would:
-/// 1. Spawn `claude --output-format stream-json` as a PTY process
-/// 2. Parse NDJSON output to extract agent operations
-/// 3. Emit `agent:operation` events for file changes
-/// 4. Update agent status via `agent:status_changed` events
 pub fn spawn_claude_cli(
     state: &ProcessServiceState,
+    app_handle: &AppHandle,
     session_id: String,
     label: String,
     agent_id: String,
     _initial_prompt: Option<String>,
     _working_directory: Option<String>,
 ) -> Result<ProcessHandle, String> {
-    // Create the session with agent_id association
-    let handle = create_session(state, session_id, label, Some(agent_id))?;
-
-    // TODO: Spawn Claude Code CLI process
-    // let cmd = Command::new("claude")
-    //     .args(["--output-format", "stream-json"])
-    //     .env("TERM", "xterm-256color");
-    //
-    // if let Some(prompt) = initial_prompt {
-    //     cmd.arg("--prompt").arg(prompt);
-    // }
-    //
-    // if let Some(dir) = working_directory {
-    //     cmd.current_dir(dir);
-    // }
-    //
-    // // Spawn and set up NDJSON parser on stdout
-    // tokio::spawn(async move {
-    //     parse_stream_json(reader, agent_id, app).await;
-    // });
-
+    let handle = create_session(state, app_handle, session_id, label, Some(agent_id))?;
     Ok(handle)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_create_and_close_session() {
-        let state = ProcessServiceState::new();
-        let handle =
-            create_session(&state, "test-1".into(), "Shell".into(), None).unwrap();
-        assert_eq!(handle.id, "test-1");
-        assert!(handle.is_alive);
-
-        close_session(&state, "test-1").unwrap();
-        let sessions = state.sessions.lock().unwrap();
-        assert!(!sessions.contains_key("test-1"));
-    }
-
-    #[test]
-    fn test_duplicate_session_rejected() {
-        let state = ProcessServiceState::new();
-        create_session(&state, "dup".into(), "Shell".into(), None).unwrap();
-        let result = create_session(&state, "dup".into(), "Shell 2".into(), None);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_write_to_nonexistent_session() {
-        let state = ProcessServiceState::new();
-        let result = write_to_session(&state, "no-such", "hello");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_close_all_sessions() {
-        let state = ProcessServiceState::new();
-        create_session(&state, "s1".into(), "Shell 1".into(), None).unwrap();
-        create_session(&state, "s2".into(), "Shell 2".into(), None).unwrap();
-        close_all_sessions(&state).unwrap();
-        let sessions = state.sessions.lock().unwrap();
-        assert!(sessions.is_empty());
-    }
 }

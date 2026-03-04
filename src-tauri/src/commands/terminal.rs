@@ -14,12 +14,13 @@ use crate::services::process_service::{self, ProcessServiceState};
 #[tauri::command]
 pub fn terminal_create(
     label: Option<String>,
+    app_handle: tauri::AppHandle,
     state: State<'_, ProcessServiceState>,
 ) -> Result<String, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let label = label.unwrap_or_else(|| "Shell".to_string());
 
-    let handle = process_service::create_session(&state, id.clone(), label, None)?;
+    let handle = process_service::create_session(&state, &app_handle, id.clone(), label, None)?;
     Ok(handle.id)
 }
 

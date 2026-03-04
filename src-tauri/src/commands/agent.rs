@@ -73,6 +73,7 @@ pub fn agent_start(
         if let Some(ref tab_id) = terminal_tab_id {
             let handle = process_service::spawn_claude_cli(
                 &process_state,
+                &app,
                 tab_id.clone(),
                 format!("Claude: {}", config.name),
                 agent_id.clone(),

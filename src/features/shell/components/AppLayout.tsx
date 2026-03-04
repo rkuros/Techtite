@@ -17,6 +17,7 @@ import { WelcomeScreen } from "./WelcomeScreen";
 import { FileExplorer } from "@/features/file-management";
 import { SearchPanel } from "@/features/knowledge";
 import { GitPanel } from "@/features/git";
+import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
 
 export function AppLayout() {
   const currentVault = useVaultStore((s) => s.currentVault);
@@ -90,12 +91,7 @@ export function AppLayout() {
                 borderLeft: "1px solid var(--color-border-subtle)",
               }}
             >
-              <div
-                className="flex items-center justify-center h-full text-xs"
-                style={{ color: "var(--color-text-muted)" }}
-              >
-                Terminal (Unit 7)
-              </div>
+              <TerminalPanel />
             </div>
           </Panel>
         </PanelGroup>

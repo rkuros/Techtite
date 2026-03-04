@@ -1,4 +1,8 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef } from "react";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon } from "@xterm/addon-search";
+import "@xterm/xterm/css/xterm.css";
 import { useTerminalStore } from "@/stores/terminal-store";
 import { listenEvent } from "@/shared/utils/ipc";
 
@@ -8,224 +12,126 @@ interface TerminalInstanceProps {
 }
 
 /**
- * TerminalInstance — Renders a single terminal session.
+ * TerminalInstance -- Renders a single xterm.js terminal session.
  *
- * This is a placeholder for the xterm.js terminal emulator.
- * When @xterm/xterm is installed, this component will:
- * 1. Create a Terminal instance with FitAddon and SearchAddon
- * 2. Subscribe to `terminal:output` events for this session
- * 3. Forward keyboard input via `terminal:write` IPC command
- * 4. Handle resize via ResizeObserver + FitAddon + `terminal:resize` IPC
- * 5. Support in-terminal search with Ctrl+F
- *
- * Current implementation: A styled placeholder div that displays
- * terminal output as plain text and accepts basic keyboard input.
+ * Creates a Terminal instance with FitAddon and SearchAddon,
+ * subscribes to `terminal:output` events for this session,
+ * forwards keyboard input via `terminal:write` IPC command,
+ * and handles resize via ResizeObserver + FitAddon + `terminal:resize` IPC.
  */
 export function TerminalInstance({
   sessionId,
-  isActive: _isActive,
+  isActive,
 }: TerminalInstanceProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [outputLines, setOutputLines] = useState<string[]>([
-    `Terminal session: ${sessionId}`,
-    "Waiting for PTY connection...",
-    "",
-    "// xterm.js integration placeholder",
-    "// Install @xterm/xterm, @xterm/addon-fit, @xterm/addon-search",
-    "// to enable full terminal emulation.",
-    "",
-  ]);
-  const outputEndRef = useRef<HTMLDivElement>(null);
+  const terminalRef = useRef<HTMLDivElement>(null);
+  const xtermRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const writeToTerminal = useTerminalStore((s) => s.writeToTerminal);
   const resizeTerminal = useTerminalStore((s) => s.resizeTerminal);
 
-  // Subscribe to terminal output events
+  // Initialize xterm.js on mount
   useEffect(() => {
-    let unlisten: (() => void) | undefined;
+    const container = terminalRef.current;
+    if (!container) return;
 
-    listenEvent<{ id: string; data: string }>(
+    const terminal = new Terminal({
+      scrollback: 10000,
+      fontFamily:
+        "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
+      fontSize: 13,
+      lineHeight: 1.4,
+      cursorBlink: true,
+      cursorStyle: "bar",
+      theme: {
+        background: "#1e1e1e",
+        foreground: "#dcddde",
+        cursor: "#7c6af2",
+        selectionBackground: "#7c6af240",
+        black: "#1e1e1e",
+        red: "#f44747",
+        green: "#6a9955",
+        yellow: "#d7ba7d",
+        blue: "#569cd6",
+        magenta: "#c586c0",
+        cyan: "#4ec9b0",
+        white: "#d4d4d4",
+        brightBlack: "#808080",
+        brightRed: "#f44747",
+        brightGreen: "#6a9955",
+        brightYellow: "#d7ba7d",
+        brightBlue: "#569cd6",
+        brightMagenta: "#c586c0",
+        brightCyan: "#4ec9b0",
+        brightWhite: "#ffffff",
+      },
+    });
+
+    const fitAddon = new FitAddon();
+    const searchAddon = new SearchAddon();
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(searchAddon);
+
+    terminal.open(container);
+
+    // Fit after a short delay to ensure container dimensions are settled
+    requestAnimationFrame(() => {
+      fitAddon.fit();
+    });
+
+    xtermRef.current = terminal;
+    fitAddonRef.current = fitAddon;
+
+    // Forward keyboard input to PTY via IPC
+    const dataDisposable = terminal.onData((data) => {
+      writeToTerminal(sessionId, data).catch((err) => {
+        console.error("Failed to write to terminal:", err);
+      });
+    });
+
+    // Subscribe to terminal:output events from Rust backend
+    let unlistenOutput: (() => void) | undefined;
+    const outputPromise = listenEvent<{ id: string; data: string }>(
       "terminal:output",
       (payload) => {
         if (payload.id === sessionId) {
-          setOutputLines((prev) => {
-            // Split incoming data by newlines and append
-            const newLines = payload.data.split("\n");
-            const combined = [...prev, ...newLines];
-            // Keep scrollback buffer at 10,000 lines max
-            if (combined.length > 10000) {
-              return combined.slice(combined.length - 10000);
-            }
-            return combined;
-          });
+          terminal.write(payload.data);
         }
       }
     ).then((fn) => {
-      unlisten = fn;
+      unlistenOutput = fn;
     });
 
-    return () => {
-      unlisten?.();
-    };
-  }, [sessionId]);
-
-  // Auto-scroll to bottom on new output
-  useEffect(() => {
-    outputEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [outputLines]);
-
-  // Handle keyboard input
-  const handleKeyDown = useCallback(
-    async (e: React.KeyboardEvent) => {
-      // Prevent default for most keys to avoid browser shortcuts
-      // but allow Ctrl+C, Ctrl+V, etc.
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-      }
-
-      let data = "";
-
-      if (e.key === "Enter") {
-        data = "\r";
-      } else if (e.key === "Backspace") {
-        data = "\x7f";
-      } else if (e.key === "Tab") {
-        e.preventDefault();
-        data = "\t";
-      } else if (e.key === "Escape") {
-        data = "\x1b";
-      } else if (e.key === "ArrowUp") {
-        data = "\x1b[A";
-      } else if (e.key === "ArrowDown") {
-        data = "\x1b[B";
-      } else if (e.key === "ArrowRight") {
-        data = "\x1b[C";
-      } else if (e.key === "ArrowLeft") {
-        data = "\x1b[D";
-      } else if (e.ctrlKey && e.key === "c") {
-        data = "\x03"; // SIGINT
-      } else if (e.ctrlKey && e.key === "d") {
-        data = "\x04"; // EOF
-      } else if (e.ctrlKey && e.key === "z") {
-        data = "\x1a"; // SIGTSTP
-      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-        data = e.key;
-      }
-
-      if (data) {
-        try {
-          await writeToTerminal(sessionId, data);
-        } catch (err) {
-          console.error("Failed to write to terminal:", err);
-        }
-      }
-    },
-    [sessionId, writeToTerminal]
-  );
-
-  // ResizeObserver for container size changes
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const observer = new ResizeObserver(() => {
-      // TODO: When xterm.js is installed, call fitAddon.fit() here
-      // and then send the new dimensions via terminal:resize
-      //
-      // const { cols, rows } = fitAddon.proposeDimensions();
-      // resizeTerminal(sessionId, cols, rows);
-      //
-      // For now, estimate cols/rows from container dimensions
-      const charWidth = 7.8; // approximate monospace char width at 13px
-      const lineHeight = 18; // approximate line height
-      const cols = Math.floor(container.clientWidth / charWidth);
-      const rows = Math.floor(container.clientHeight / lineHeight);
-      if (cols > 0 && rows > 0) {
-        resizeTerminal(sessionId, cols, rows).catch(() => {
-          // Ignore resize errors for placeholder
+    // ResizeObserver to handle container size changes
+    const resizeObserver = new ResizeObserver(() => {
+      fitAddon.fit();
+      const dims = fitAddon.proposeDimensions();
+      if (dims && dims.cols > 0 && dims.rows > 0) {
+        resizeTerminal(sessionId, dims.cols, dims.rows).catch(() => {
+          // Ignore resize errors
         });
       }
     });
+    resizeObserver.observe(container);
 
-    observer.observe(container);
-    return () => observer.disconnect();
-  }, [sessionId, resizeTerminal]);
+    // Cleanup
+    return () => {
+      dataDisposable.dispose();
+      resizeObserver.disconnect();
+      outputPromise.then(() => unlistenOutput?.());
+      terminal.dispose();
+      xtermRef.current = null;
+      fitAddonRef.current = null;
+    };
+  }, [sessionId, writeToTerminal, resizeTerminal]);
 
-  return (
-    <div
-      ref={containerRef}
-      className="h-full w-full overflow-hidden outline-none"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      style={{
-        backgroundColor: "#1e1e1e",
-        cursor: "text",
-      }}
-    >
-      {/*
-        xterm.js integration point:
+  // Re-fit when tab becomes active
+  useEffect(() => {
+    if (isActive && fitAddonRef.current) {
+      requestAnimationFrame(() => {
+        fitAddonRef.current?.fit();
+      });
+    }
+  }, [isActive]);
 
-        When @xterm/xterm is installed, replace this entire inner content with:
-
-        ```tsx
-        const terminalRef = useRef<HTMLDivElement>(null);
-
-        useEffect(() => {
-          const terminal = new Terminal({
-            scrollback: 10000,
-            fontFamily: 'var(--mono)',
-            fontSize: 13,
-            theme: {
-              background: '#1e1e1e',
-              foreground: '#dcddde',
-              cursor: '#7c6af2',
-            },
-          });
-          const fitAddon = new FitAddon();
-          const searchAddon = new SearchAddon();
-          terminal.loadAddon(fitAddon);
-          terminal.loadAddon(searchAddon);
-          terminal.open(terminalRef.current!);
-          fitAddon.fit();
-
-          // Subscribe to terminal:output
-          const unlisten = listenEvent<{id: string, data: string}>(
-            'terminal:output',
-            (p) => { if (p.id === sessionId) terminal.write(p.data); }
-          );
-
-          // Forward input to PTY
-          terminal.onData((data) => writeToTerminal(sessionId, data));
-
-          // Resize handling
-          const ro = new ResizeObserver(() => {
-            fitAddon.fit();
-            resizeTerminal(sessionId, terminal.cols, terminal.rows);
-          });
-          ro.observe(terminalRef.current!);
-
-          return () => { terminal.dispose(); ro.disconnect(); unlisten.then(fn => fn()); };
-        }, [sessionId]);
-
-        return <div ref={terminalRef} className="h-full w-full" />;
-        ```
-      */}
-      <div
-        className="h-full w-full overflow-y-auto p-2"
-        style={{
-          fontFamily:
-            "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-          fontSize: 13,
-          lineHeight: "18px",
-          color: "#dcddde",
-        }}
-      >
-        {outputLines.map((line, i) => (
-          <div key={i} className="whitespace-pre-wrap break-all">
-            {line || "\u00A0"}
-          </div>
-        ))}
-        <div ref={outputEndRef} />
-      </div>
-    </div>
-  );
+  return <div ref={terminalRef} className="h-full w-full" />;
 }

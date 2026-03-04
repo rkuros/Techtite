@@ -30,6 +30,7 @@ regex = "1"
 git2 = "0.20"
 thiserror = "2"
 dirs-next = "2"
+portable-pty = "0.8"
 tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
