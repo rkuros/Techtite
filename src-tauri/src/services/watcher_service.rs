@@ -3,7 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+
+use crate::models::log::{CaptureEvent, CaptureEventType};
+use crate::services::capture_service::{self, CaptureServiceState};
 
 const TECHTITE_DIR: &str = ".techtite";
 
@@ -84,10 +87,32 @@ fn handle_fs_event(app_handle: &AppHandle, vault_root: &PathBuf, event: Event) {
         };
 
         let payload = FsChangedPayload {
-            path: relative_path,
+            path: relative_path.clone(),
             change_type: change_type.to_string(),
         };
 
         let _ = app_handle.emit("fs:changed", &payload);
+
+        // Record as capture event
+        let capture_event_type = match event.kind {
+            EventKind::Create(_) => CaptureEventType::FileCreated,
+            EventKind::Modify(_) => CaptureEventType::FileModified,
+            EventKind::Remove(_) => CaptureEventType::FileDeleted,
+            _ => return,
+        };
+
+        let capture_event = CaptureEvent {
+            id: uuid::Uuid::new_v4().to_string(),
+            event_type: capture_event_type,
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            file_path: Some(relative_path),
+            agent_id: None,
+            summary: format!("File {change_type}"),
+            raw_data: None,
+        };
+
+        if let Some(capture_state) = app_handle.try_state::<CaptureServiceState>() {
+            let _ = capture_service::record_event(&capture_state, capture_event);
+        }
     }
 }
