@@ -3,6 +3,7 @@ pub mod models;
 pub mod services;
 pub mod utils;
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use models::vault::Vault;
@@ -29,6 +30,7 @@ use services::publish_service::PublishServiceState;
 /// Global application state managed by Tauri.
 pub struct AppState {
     pub current_vault: Mutex<Option<Vault>>,
+    pub active_root: Mutex<Option<PathBuf>>,
     pub watcher_state: Arc<Mutex<WatcherState>>,
 }
 
@@ -41,6 +43,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             current_vault: Mutex::new(None),
+            active_root: Mutex::new(None),
             watcher_state: Arc::new(Mutex::new(WatcherState::new())),
         })
         // Unit 4: Knowledge Base state
@@ -78,9 +81,19 @@ pub fn run() {
             commands::vault::select_folder,
             commands::vault::get_config,
             commands::vault::update_config,
+            commands::vault::create_vault_dir,
+            commands::vault::get_home_dir,
             // Unit 1: Window State
             commands::window::save_state,
             commands::window::load_state,
+            // Project Management
+            commands::project::list_projects,
+            commands::project::set_active_project,
+            commands::project::clear_active_project,
+            commands::project::add_custom_project,
+            commands::project::remove_custom_project,
+            commands::project::select_project_folder,
+            commands::project::get_session,
             // Unit 2: Editor
             commands::editor::get_file_type,
             commands::editor::get_language,

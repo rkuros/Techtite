@@ -1,6 +1,7 @@
 pub mod vault;
 pub mod file;
 pub mod editor;
+pub mod project;
 // Unit 4: Knowledge Base Core
 pub mod note;
 pub mod search;

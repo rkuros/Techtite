@@ -215,21 +215,22 @@ pub fn get_tree(
     state: State<'_, AppState>,
     include_ignored: Option<bool>,
 ) -> Result<FileEntry, String> {
-    let vault = state
-        .current_vault
-        .lock()
-        .map_err(|e| e.to_string())?;
-    let vault = vault.as_ref().ok_or("No vault open")?;
+    let root = state.active_root.lock().map_err(|e| e.to_string())?;
+    let vault_root = root.as_ref().ok_or("No vault or project open")?;
 
-    let vault_root = &vault.path;
     let gitignore_patterns = parse_gitignore(vault_root);
     let include = include_ignored.unwrap_or(false);
 
     let children = build_file_tree(vault_root, vault_root, &gitignore_patterns, include)?;
 
+    let name = vault_root
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| "Root".to_string());
+
     Ok(FileEntry {
         path: "".to_string(),
-        name: vault.name.clone(),
+        name,
         is_dir: true,
         children: Some(children),
     })
@@ -246,13 +247,10 @@ pub fn get_metadata(
     state: State<'_, AppState>,
     path: String,
 ) -> Result<FileMetadata, String> {
-    let vault = state
-        .current_vault
-        .lock()
-        .map_err(|e| e.to_string())?;
-    let vault = vault.as_ref().ok_or("No vault open")?;
+    let root = state.active_root.lock().map_err(|e| e.to_string())?;
+    let vault_root = root.as_ref().ok_or("No vault or project open")?;
 
-    let full_path = resolve_vault_path(&vault.path, &path).map_err(|e| e.to_string())?;
+    let full_path = resolve_vault_path(vault_root, &path).map_err(|e| e.to_string())?;
 
     if !full_path.exists() {
         return Err(format!("File not found: {path}"));

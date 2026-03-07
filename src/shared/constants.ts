@@ -1,5 +1,6 @@
 // Sidebar panel identifiers
 export const SIDEBAR_PANELS = {
+  PROJECTS: "projects",
   FILES: "files",
   SEARCH: "search",
   BACKLINKS: "backlinks",

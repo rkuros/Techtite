@@ -1,4 +1,6 @@
+use std::collections::hash_map::DefaultHasher;
 use std::fs;
+use std::hash::{Hash, Hasher};
 use std::path::Path;
 
 use crate::models::vault::{Vault, VaultConfig};
@@ -49,8 +51,13 @@ pub fn open_vault(path: &Path) -> Result<Vault, TechtiteError> {
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_else(|| "Unnamed Vault".to_string());
 
+    // Deterministic vault ID from path
+    let mut hasher = DefaultHasher::new();
+    path.to_string_lossy().hash(&mut hasher);
+    let id = format!("{:016x}", hasher.finish());
+
     Ok(Vault {
-        id: uuid::Uuid::new_v4().to_string(),
+        id,
         path: path.to_path_buf(),
         name,
         is_git_repo,

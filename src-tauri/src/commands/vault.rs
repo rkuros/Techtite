@@ -116,6 +116,16 @@ pub fn open(
     // Store current vault
     let mut current = state.current_vault.lock().map_err(|e| e.to_string())?;
     *current = Some(vault.clone());
+    drop(current); // release current_vault lock
+
+    // Set active root to vault path
+    let mut active = state.active_root.lock().map_err(|e| e.to_string())?;
+    *active = Some(vault_path.clone());
+    drop(active);
+
+    // Save session
+    use crate::services::project_service;
+    project_service::save_session(&path, None).map_err(|e| e.to_string())?;
 
     Ok(vault)
 }
@@ -143,6 +153,22 @@ pub fn get_config(state: State<'_, AppState>) -> Result<VaultConfig, String> {
     let vault = state.current_vault.lock().map_err(|e| e.to_string())?;
     let vault = vault.as_ref().ok_or("No vault open")?;
     vault_service::get_config(&vault.path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_home_dir() -> Result<String, String> {
+    dirs_next::home_dir()
+        .map(|p| p.to_string_lossy().to_string())
+        .ok_or_else(|| "Could not determine home directory".to_string())
+}
+
+#[tauri::command]
+pub fn create_vault_dir(path: String) -> Result<(), String> {
+    let p = std::path::Path::new(&path);
+    if p.exists() {
+        return Err(format!("Directory already exists: {}", path));
+    }
+    std::fs::create_dir_all(p).map_err(|e| format!("Failed to create directory: {}", e))
 }
 
 #[tauri::command]

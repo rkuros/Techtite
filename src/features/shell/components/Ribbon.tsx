@@ -8,6 +8,7 @@ interface RibbonIcon {
 }
 
 const ribbonIcons: RibbonIcon[] = [
+  { id: SIDEBAR_PANELS.PROJECTS, label: "Projects", icon: "📦" },
   { id: SIDEBAR_PANELS.FILES, label: "Files", icon: "📁" },
   { id: SIDEBAR_PANELS.SEARCH, label: "Search", icon: "🔍" },
   { id: SIDEBAR_PANELS.BACKLINKS, label: "Backlinks", icon: "🔗" },
@@ -33,7 +34,30 @@ export function Ribbon() {
         borderRight: "1px solid var(--color-border-subtle)",
       }}
     >
-      {ribbonIcons.map((item) => (
+      {/* Projects button */}
+      <button
+        title={ribbonIcons[0].label}
+        onClick={() => setSidebarPanel(ribbonIcons[0].id)}
+        className="flex items-center justify-center w-9 h-9 rounded-md text-base transition-colors"
+        style={{
+          backgroundColor:
+            activeSidebarPanel === ribbonIcons[0].id
+              ? "var(--color-bg-surface)"
+              : "transparent",
+          color:
+            activeSidebarPanel === ribbonIcons[0].id
+              ? "var(--color-text-accent)"
+              : "var(--color-text-secondary)",
+        }}
+      >
+        {ribbonIcons[0].icon}
+      </button>
+      <div
+        className="w-6 mx-auto my-1"
+        style={{ borderTop: "1px solid var(--color-border-subtle)" }}
+      />
+      {/* Other ribbon icons */}
+      {ribbonIcons.slice(1).map((item) => (
         <button
           key={item.id}
           title={item.label}

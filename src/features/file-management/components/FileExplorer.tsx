@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react
 import { useEventListener } from "@/hooks/use-event-listener";
 import { useEditorStore } from "@/stores/editor-store";
 import { useFileTreeStore } from "@/stores/file-tree-store";
+import { useVaultStore } from "@/stores/vault-store";
 import type { FileEntry } from "@/types/file";
 
 import { FileTreeNode } from "./FileTreeNode";
@@ -38,6 +39,15 @@ export function FileExplorer() {
   const deleteNode = useFileTreeStore((s) => s.deleteNode);
   const selectedPath = useFileTreeStore((s) => s.selectedPath);
 
+  const projects = useVaultStore((s) => s.projects);
+  const currentProject = useVaultStore((s) => s.currentProject);
+  const setProject = useVaultStore((s) => s.setProject);
+  const clearProject = useVaultStore((s) => s.clearProject);
+  const addCustomProject = useVaultStore((s) => s.addCustomProject);
+  const currentVault = useVaultStore((s) => s.currentVault);
+
+  const [showProjectMenu, setShowProjectMenu] = useState(false);
+
   const [contextMenu, setContextMenu] = useState<ContextMenuState>({
     visible: false,
     x: 0,
@@ -72,6 +82,7 @@ export function FileExplorer() {
   useEffect(() => {
     const handleClickOutside = () => {
       setContextMenu((prev) => ({ ...prev, visible: false }));
+      setShowProjectMenu(false);
     };
 
     document.addEventListener("click", handleClickOutside);
@@ -324,6 +335,88 @@ export function FileExplorer() {
             </svg>
           </button>
         </div>
+      </div>
+
+      {/* Project Selector */}
+      <div className="px-3 pb-2 relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowProjectMenu(!showProjectMenu);
+          }}
+          className="w-full flex items-center justify-between px-2.5 py-1.5 rounded text-[13px] transition-colors border"
+          style={{
+            color: "var(--color-text-primary)",
+            backgroundColor: "var(--color-bg-surface, #1e2028)",
+            borderColor: showProjectMenu ? "var(--color-accent, #7c6fe0)" : "var(--color-border-subtle, #2e303a)",
+          }}
+        >
+          <span className="truncate font-medium">
+            {currentProject ? currentProject.name : currentVault?.name ?? "All Files"}
+          </span>
+          <span
+            className="text-[9px] ml-2 transition-transform"
+            style={{
+              color: "var(--color-text-muted)",
+              transform: showProjectMenu ? "rotate(180deg)" : "rotate(0deg)",
+            }}
+          >
+            {"\u25BC"}
+          </span>
+        </button>
+
+        {showProjectMenu && (
+          <div
+            className="absolute left-3 right-3 mt-1 py-1 rounded-md border shadow-lg z-50 max-h-[300px] overflow-y-auto"
+            style={{
+              backgroundColor: "var(--color-bg-surface, #1e2028)",
+              borderColor: "var(--color-accent, #7c6fe0)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* All Files (vault root) */}
+            <button
+              className={`w-full text-left px-3 py-1.5 text-[13px] transition-colors hover:bg-[var(--accent,#7c6fe0)] hover:text-white ${
+                !currentProject ? "font-semibold" : ""
+              }`}
+              style={{ color: "var(--color-text-primary)" }}
+              onClick={() => { clearProject(); setShowProjectMenu(false); }}
+            >
+              {currentVault?.name ?? "All Files"}
+              {!currentProject && <span className="ml-1 text-[10px] opacity-50">{"\u25CF"}</span>}
+            </button>
+
+            {projects.length > 0 && (
+              <div className="my-1 border-t" style={{ borderColor: "var(--color-border-subtle)" }} />
+            )}
+
+            {projects.map((project) => (
+              <button
+                key={project.id}
+                className={`w-full text-left px-3 py-1.5 text-[13px] flex items-center justify-between transition-colors hover:bg-[var(--accent,#7c6fe0)] hover:text-white ${
+                  currentProject?.id === project.id ? "font-semibold" : ""
+                }`}
+                style={{ color: "var(--color-text-primary)" }}
+                onClick={() => { setProject(project); setShowProjectMenu(false); }}
+              >
+                <span className="truncate">{project.name}</span>
+                <span className="flex items-center gap-1">
+                  {project.isCustom && <span className="text-[10px] opacity-40">ext</span>}
+                  {currentProject?.id === project.id && <span className="text-[10px] opacity-50">{"\u25CF"}</span>}
+                </span>
+              </button>
+            ))}
+
+            <div className="my-1 border-t" style={{ borderColor: "var(--color-border-subtle)" }} />
+            <button
+              className="w-full text-left px-3 py-1.5 text-[13px] transition-colors hover:bg-[var(--accent,#7c6fe0)] hover:text-white"
+              style={{ color: "var(--color-text-muted)" }}
+              onClick={() => { addCustomProject(); setShowProjectMenu(false); }}
+            >
+              + Add external project...
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Inline create input (shown at top of tree when creating) */}

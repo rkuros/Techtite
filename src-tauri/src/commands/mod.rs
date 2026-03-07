@@ -3,6 +3,7 @@ pub mod vault;
 pub mod window;
 pub mod editor;
 pub mod file_tree;
+pub mod project;
 // Unit 4: Knowledge Base Core
 pub mod knowledge;
 pub mod search;

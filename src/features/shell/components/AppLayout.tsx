@@ -15,7 +15,7 @@ import { StatusBar } from "./StatusBar";
 import { WelcomeScreen } from "./WelcomeScreen";
 
 // Sidebar panels (actual components from each Unit)
-import { FileExplorer } from "@/features/file-management";
+import { FileExplorer, ProjectsPanel } from "@/features/file-management";
 import { SearchPanel, BacklinksPage, TagsPage, GraphView } from "@/features/knowledge";
 import { GitPanel, SyncStatus } from "@/features/git";
 import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
@@ -27,7 +27,14 @@ import { AIChat, RAGStatusIndicator } from "@/features/semantic-search";
 
 export function AppLayout() {
   const currentVault = useVaultStore((s) => s.currentVault);
+  const isRestoring = useVaultStore((s) => s.isRestoring);
+  const restoreSession = useVaultStore((s) => s.restoreSession);
   const activeSidebarPanel = useEditorStore((s) => s.activeSidebarPanel);
+
+  // Restore last session on mount
+  useEffect(() => {
+    restoreSession();
+  }, [restoreSession]);
 
   // Initialize event listeners once on mount
   useEffect(() => {
@@ -38,6 +45,20 @@ export function AppLayout() {
       cleanupSemantic();
     };
   }, []);
+
+  // Show loading during session restore
+  if (isRestoring) {
+    return (
+      <div
+        className="h-screen w-screen flex items-center justify-center"
+        style={{ backgroundColor: "var(--color-bg-primary)" }}
+      >
+        <div className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+          Loading...
+        </div>
+      </div>
+    );
+  }
 
   // Show welcome screen when no vault is open
   if (!currentVault) {
@@ -128,6 +149,8 @@ export function AppLayout() {
 /** Render the active sidebar panel component. */
 function SidebarContent({ panel }: { panel: string }) {
   switch (panel) {
+    case SIDEBAR_PANELS.PROJECTS:
+      return <ProjectsPanel />;
     case SIDEBAR_PANELS.FILES:
       return <FileExplorer />;
     case SIDEBAR_PANELS.SEARCH:

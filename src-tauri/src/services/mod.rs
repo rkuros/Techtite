@@ -1,6 +1,7 @@
 pub mod fs_service;
 pub mod vault_service;
 pub mod watcher_service;
+pub mod project_service;
 // Unit 4: Knowledge Base Core
 pub mod link_index_service;
 pub mod tag_service;

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import Fuse, { type IFuseOptions } from "fuse.js";
 
 import { invokeCommand } from "@/shared/utils/ipc";
+import { useVaultStore } from "@/stores/vault-store";
 import type { FileEntry } from "@/types/file";
 
 // ---- Types ----
@@ -325,3 +326,16 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
     }
   },
 }));
+
+// Re-load file tree when active project changes
+let _prevProjectId: string | null = null;
+useVaultStore.subscribe((state) => {
+  const newProjectId = state.currentProject?.id ?? null;
+  if (newProjectId !== _prevProjectId) {
+    _prevProjectId = newProjectId;
+    // Skip initial null → null
+    if (state.currentVault) {
+      useFileTreeStore.getState().loadTree();
+    }
+  }
+});

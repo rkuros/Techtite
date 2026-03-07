@@ -15,3 +15,15 @@ export interface VaultConfig {
 }
 
 export type LogGranularity = "detailed" | "standard" | "compact";
+
+export interface Project {
+  id: string;
+  name: string;
+  path: string;
+  isCustom: boolean;
+}
+
+export interface SessionState {
+  vaultPath: string;
+  projectPath: string | null;
+}
