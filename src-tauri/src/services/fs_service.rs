@@ -13,7 +13,16 @@ pub fn read_file(vault_root: &Path, relative_path: &str) -> Result<String, Techt
     if !full_path.exists() {
         return Err(TechtiteError::FileNotFound(relative_path.to_string()));
     }
-    Ok(fs::read_to_string(&full_path)?)
+    fs::read_to_string(&full_path).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::InvalidData {
+            TechtiteError::Other(format!(
+                "Cannot read '{}' as text: file appears to be binary or uses an unsupported encoding",
+                relative_path
+            ))
+        } else {
+            TechtiteError::Io(e)
+        }
+    })
 }
 
 /// Write content to a file, creating parent directories if needed.

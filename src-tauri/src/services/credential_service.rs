@@ -8,9 +8,18 @@ use crate::models::cost::CredentialEntry;
 /// Maintains metadata about stored credentials. The actual secret values
 /// are kept in a separate secure store.
 ///
-/// TODO: Integrate with the `keyring` crate for OS-level secure storage
-/// (macOS Keychain, Windows Credential Locker, Linux Secret Service).
-/// Currently stores values in an in-memory HashMap as a development stub.
+/// # FIXME: SECURITY — PLAINTEXT CREDENTIAL STORAGE
+///
+/// **This is a critical security issue.** Credentials are currently stored
+/// in an in-memory `HashMap` with no encryption or OS-level protection.
+/// Any memory dump, debugger attachment, or core dump will expose all
+/// stored secrets in plaintext.
+///
+/// This MUST be replaced with the `keyring` crate before any release to
+/// use OS-level secure storage (macOS Keychain, Windows Credential Locker,
+/// Linux Secret Service). See: <https://crates.io/crates/keyring>
+///
+/// DO NOT ship this implementation to end users.
 pub struct CredentialServiceState {
     pub entries: Mutex<Vec<CredentialEntry>>,
     /// In-memory value store — to be replaced with keyring crate.
@@ -68,7 +77,13 @@ pub fn set(
         });
     }
 
-    // Store value in memory (TODO: use keyring)
+    // FIXME: SECURITY — storing credential in plaintext memory. Replace with keyring crate.
+    eprintln!(
+        "[credential_service] WARNING: Storing credential '{}' for service '{}' in plaintext memory. \
+         This is insecure and must be replaced with OS-level secure storage (keyring crate) before release.",
+        key,
+        entries.iter().find(|e| e.key == key).map(|e| e.service.as_str()).unwrap_or("unknown"),
+    );
     values.insert(key, value);
 
     Ok(())

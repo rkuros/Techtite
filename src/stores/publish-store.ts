@@ -77,7 +77,7 @@ export const usePublishStore = create<PublishStoreState>((set) => ({
       if (result.success) {
         set((state) => ({
           blogDrafts: state.blogDrafts.map((d) =>
-            d.title === draft.title
+            d.id === draft.id
               ? { ...d, status: "published" as const }
               : d
           ),
@@ -102,7 +102,7 @@ export const usePublishStore = create<PublishStoreState>((set) => ({
       if (result.success) {
         set((state) => ({
           blogDrafts: state.blogDrafts.map((d) =>
-            d.title === draft.title
+            d.id === draft.id
               ? { ...d, status: "published" as const }
               : d
           ),
@@ -145,7 +145,7 @@ export const usePublishStore = create<PublishStoreState>((set) => ({
       if (result.success) {
         set((state) => ({
           snsPosts: state.snsPosts.map((p) =>
-            p.content === post.content
+            p.id === post.id
               ? { ...p, status: "published" as const }
               : p
           ),
@@ -170,7 +170,7 @@ export const usePublishStore = create<PublishStoreState>((set) => ({
       if (result.success) {
         set((state) => ({
           snsPosts: state.snsPosts.map((p) =>
-            p.content === post.content
+            p.id === post.id
               ? { ...p, status: "published" as const }
               : p
           ),
@@ -231,43 +231,39 @@ export const usePublishStore = create<PublishStoreState>((set) => ({
  * Call once at app startup (e.g. in a top-level useEffect or App.tsx).
  */
 export function initPublishEventListeners(): () => void {
-  const unlistenPromises: Promise<() => void>[] = [];
+  const unlistenFns: (() => void)[] = [];
 
   // Listen for publish progress updates
-  unlistenPromises.push(
-    listenEvent<{ draftId: string; progress: number; message: string }>(
-      "publish:progress",
-      ({ draftId, progress, message }) => {
-        console.log(
-          `[Unit 10] Publish progress for ${draftId}: ${progress}% - ${message}`
-        );
-        // TODO: Update UI with progress indicator
-      }
-    )
-  );
+  listenEvent<{ draftId: string; progress: number; message: string }>(
+    "publish:progress",
+    ({ draftId, progress, message }) => {
+      console.log(
+        `[Unit 10] Publish progress for ${draftId}: ${progress}% - ${message}`
+      );
+      // TODO: Update UI with progress indicator
+    }
+  ).then((fn) => unlistenFns.push(fn));
 
   // Listen for publish completion events
-  unlistenPromises.push(
-    listenEvent<{
-      draftId: string;
-      success: boolean;
-      url?: string;
-      error?: string;
-    }>("publish:completed", ({ draftId, success, url, error }) => {
-      if (success) {
-        console.log(
-          `[Unit 10] Published successfully: ${draftId} -> ${url ?? "no URL"}`
-        );
-      } else {
-        console.error(
-          `[Unit 10] Publish failed for ${draftId}: ${error ?? "unknown error"}`
-        );
-      }
-    })
-  );
+  listenEvent<{
+    draftId: string;
+    success: boolean;
+    url?: string;
+    error?: string;
+  }>("publish:completed", ({ draftId, success, url, error }) => {
+    if (success) {
+      console.log(
+        `[Unit 10] Published successfully: ${draftId} -> ${url ?? "no URL"}`
+      );
+    } else {
+      console.error(
+        `[Unit 10] Publish failed for ${draftId}: ${error ?? "unknown error"}`
+      );
+    }
+  }).then((fn) => unlistenFns.push(fn));
 
   // Return a cleanup function that unlistens all
   return () => {
-    unlistenPromises.forEach((p) => p.then((unlisten) => unlisten()));
+    unlistenFns.forEach((fn) => fn());
   };
 }

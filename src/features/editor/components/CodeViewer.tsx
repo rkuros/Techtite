@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { languages } from "@codemirror/language-data";
 import { EditorView, keymap } from "@codemirror/view";
+import { Compartment } from "@codemirror/state";
 import { useEditorStore, type EditorViewRef } from "@/stores/editor-store";
 import type { TabState } from "@/types/editor";
 
@@ -9,6 +10,7 @@ import type { TabState } from "@/types/editor";
 // Theme (module-level, created once)
 // ---------------------------------------------------------------------------
 const lineWrapping = EditorView.lineWrapping;
+const readOnlyCompartment = new Compartment();
 
 // basicSetup configs (stable references)
 const basicSetupReadOnly = {
@@ -60,10 +62,11 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
   const editorFontSize = useEditorStore((s) => s.editorFontSize);
 
   // Extensions — only depend on filePath and language (NOT isEditable)
-  // Read-only is toggled imperatively via EditorView.dispatch
+  // Read-only is toggled imperatively via Compartment.reconfigure
   const extensions = useMemo(() => {
     const exts: import("@codemirror/state").Extension[] = [
       lineWrapping,
+      readOnlyCompartment.of(EditorView.editable.of(false)),
       keymap.of([{
         key: "Mod-s",
         run: () => {
@@ -105,11 +108,13 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
     const willEdit = !isEditable;
     setIsEditable(willEdit);
     useEditorStore.getState().setViewMode(tab.id, willEdit ? "source" : "readOnly");
-    // Toggle readOnly imperatively
+    // Toggle readOnly imperatively via Compartment reconfiguration
     const view = cmRef.current?.view;
     if (view) {
       view.dispatch({
-        effects: view.state.readOnly !== willEdit ? [] : [],
+        effects: readOnlyCompartment.reconfigure(
+          EditorView.editable.of(willEdit)
+        ),
       });
     }
   }, [isEditable, tab.id]);

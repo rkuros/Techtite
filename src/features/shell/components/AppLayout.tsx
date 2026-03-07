@@ -69,7 +69,10 @@ export function AppLayout() {
 
   // Listen for native menu events
   useEffect(() => {
-    const unlistenPromise = listenEvent<string>("menu-event", async (action) => {
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+
+    listenEvent<string>("menu-event", async (action) => {
       const store = useVaultStore.getState();
       switch (action) {
         case "vault-create":
@@ -91,8 +94,18 @@ export function AppLayout() {
           }
           break;
       }
+    }).then((fn) => {
+      if (cancelled) {
+        fn();
+      } else {
+        cleanup = fn;
+      }
     });
-    return () => { unlistenPromise.then((fn) => fn()); };
+
+    return () => {
+      cancelled = true;
+      cleanup?.();
+    };
   }, []);
 
   // Show loading during session restore
@@ -138,15 +151,7 @@ export function AppLayout() {
                 borderRight: "1px solid var(--color-border-subtle)",
               }}
             >
-              <div className="p-3">
-                <div
-                  className="text-xs uppercase tracking-wider mb-2"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {activeSidebarPanel}
-                </div>
-                <SidebarContent panel={activeSidebarPanel} />
-              </div>
+              <SidebarContent panel={activeSidebarPanel} />
             </div>
           </Panel>
 

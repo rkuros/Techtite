@@ -109,18 +109,14 @@ pub fn semantic_rebuild_index(
     // Clear existing index
     vector_store_service::rebuild_index(&vector_state)?;
 
-    // Set building status
-    {
-        let mut status = vector_state.status.lock().map_err(|e| e.to_string())?;
-        status.is_building = true;
-    }
-
     // Collect all .md files
     let md_files = collect_md_files(&vault_path);
     let total_files = md_files.len() as u32;
 
+    // Set building status and total_files atomically in a single lock scope
     {
         let mut status = vector_state.status.lock().map_err(|e| e.to_string())?;
+        status.is_building = true;
         status.total_files = total_files;
     }
 

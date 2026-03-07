@@ -1,3 +1,5 @@
+import type { Extension } from "@codemirror/state";
+
 /**
  * Image Preview Extension — CodeMirror 6 ViewPlugin placeholder.
  *
@@ -160,9 +162,8 @@
  *   }
  */
 
-// Placeholder export — returns a no-op until CodeMirror is integrated.
-// eslint-disable-next-line @typescript-eslint/no-empty-function
-export function imagePreviewExtension(): unknown {
+// Placeholder export — returns an empty extension array until CodeMirror is integrated.
+export function imagePreviewExtension(): Extension[] {
   // TODO: Implement with @codemirror/view ViewPlugin and Tauri convertFileSrc.
-  return null;
+  return [];
 }

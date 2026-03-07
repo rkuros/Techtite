@@ -210,9 +210,24 @@ fn detect_file_type(path: &Path) -> FileType {
 /// Input: `{ path: string }` (absolute path)
 /// Output: `FileEntry[]`
 #[tauri::command]
-pub fn list_dir_entries(path: String) -> Result<Vec<FileEntry>, String> {
+pub fn list_dir_entries(path: String, state: State<'_, AppState>) -> Result<Vec<FileEntry>, String> {
+    let root = state.active_root.lock().map_err(|e| e.to_string())?;
+    let vault_root = root.as_ref().ok_or("No vault or project open")?;
+
+    // Canonicalize both paths to prevent traversal attacks
+    let vault_canonical = vault_root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve vault root: {e}"))?;
     let dir = Path::new(&path);
-    if !dir.is_dir() {
+    let dir_canonical = dir
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve path: {e}"))?;
+
+    if !dir_canonical.starts_with(&vault_canonical) {
+        return Err(format!("Path is outside the vault: {}", path));
+    }
+
+    if !dir_canonical.is_dir() {
         return Err(format!("Not a directory: {}", path));
     }
 

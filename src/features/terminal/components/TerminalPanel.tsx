@@ -26,12 +26,18 @@ export function TerminalPanel() {
   // Initialize event listeners on mount
   useEffect(() => {
     let cleanup: (() => void) | undefined;
+    let cancelled = false;
 
     initEventListeners().then((fn) => {
-      cleanup = fn;
+      if (cancelled) {
+        fn();
+      } else {
+        cleanup = fn;
+      }
     });
 
     return () => {
+      cancelled = true;
       cleanup?.();
     };
   }, [initEventListeners]);

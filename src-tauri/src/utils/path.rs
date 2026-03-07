@@ -14,7 +14,10 @@ pub fn resolve_vault_path(vault_root: &Path, relative_path: &str) -> Result<Path
     // Canonicalize vault root to handle symlinks (macOS /var -> /private/var)
     let vault_canonical = vault_root
         .canonicalize()
-        .unwrap_or_else(|_| vault_root.to_path_buf());
+        .map_err(|_| TechtiteError::InvalidPath(format!(
+            "Cannot resolve vault root: {}",
+            vault_root.display()
+        )))?;
 
     let resolved = vault_canonical.join(relative_path);
 

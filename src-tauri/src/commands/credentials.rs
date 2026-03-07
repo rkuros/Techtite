@@ -37,6 +37,13 @@ pub fn credential_set(
     if value.is_empty() {
         return Err("Credential value cannot be empty".to_string());
     }
+    if service.trim().is_empty() {
+        return Err("Service name cannot be empty".to_string());
+    }
+    // Reject service names with control characters or path separators
+    if service.chars().any(|c| c.is_control() || c == '/' || c == '\\' || c == '\0') {
+        return Err("Service name contains invalid characters".to_string());
+    }
     credential_service::set(&state, key, value, service)
 }
 

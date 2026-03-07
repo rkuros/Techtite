@@ -37,6 +37,26 @@ pub fn set_config(state: &SandboxServiceState, config: SandboxConfig) -> Result<
     Ok(())
 }
 
+/// Extract the base command name (first token) from a command string.
+/// Handles paths (e.g., "/usr/bin/rm" -> "rm").
+fn extract_command_name(command: &str) -> String {
+    let first_token = command.split_whitespace().next().unwrap_or("");
+    // Strip directory path: "/usr/bin/rm" -> "rm"
+    first_token
+        .rsplit('/')
+        .next()
+        .unwrap_or(first_token)
+        .to_lowercase()
+}
+
+/// Characters/patterns that indicate shell injection or chaining attempts.
+const SHELL_META_CHARS: &[&str] = &[";", "&&", "||", "|", "`", "$(", "${", "\n", "\r"];
+
+/// Check if a command string contains shell bypass patterns.
+fn has_shell_bypass(command: &str) -> bool {
+    SHELL_META_CHARS.iter().any(|meta| command.contains(meta))
+}
+
 /// Validate a command against the sandbox policy.
 ///
 /// Returns Ok(true) if the command is allowed, Ok(false) if blocked.
@@ -44,9 +64,10 @@ pub fn set_config(state: &SandboxServiceState, config: SandboxConfig) -> Result<
 ///
 /// Rules:
 /// 1. If sandbox is disabled, allow everything.
-/// 2. If the command matches any blocked_commands pattern, deny.
-/// 3. If allowed_commands is non-empty, the command must match at least one.
-/// 4. Otherwise, allow.
+/// 2. Reject commands with shell injection patterns (semicolons, pipes, backticks, $()).
+/// 3. If the command's base name matches any blocked_commands entry, deny.
+/// 4. If allowed_commands is non-empty, the command's base name must match at least one.
+/// 5. Otherwise, allow.
 pub fn validate_command(state: &SandboxServiceState, command: &str) -> Result<bool, String> {
     let config = state.config.lock().map_err(|e| e.to_string())?;
 
@@ -54,21 +75,40 @@ pub fn validate_command(state: &SandboxServiceState, command: &str) -> Result<bo
         return Ok(true);
     }
 
+    // Block shell injection / chaining attempts
+    if has_shell_bypass(command) {
+        return Ok(false);
+    }
+
+    let base_cmd = extract_command_name(command);
     let cmd_lower = command.to_lowercase();
 
     // Check blocklist first (takes priority)
     for blocked in &config.blocked_commands {
-        if cmd_lower.contains(&blocked.to_lowercase()) {
-            return Ok(false);
+        let blocked_lower = blocked.to_lowercase();
+        let blocked_base = extract_command_name(&blocked_lower);
+        let blocked_has_args = blocked_lower.contains(' ');
+
+        if blocked_has_args {
+            // Multi-word pattern (e.g., "rm -rf /"): match as prefix of the full command
+            if cmd_lower.starts_with(&blocked_lower) {
+                return Ok(false);
+            }
+        } else {
+            // Single-word pattern (e.g., "mkfs", "dd"): match base command name exactly
+            // Also handle dotted variants (e.g., "mkfs" blocks "mkfs.ext4")
+            if base_cmd == blocked_base || base_cmd.starts_with(&format!("{}.", blocked_base)) {
+                return Ok(false);
+            }
         }
     }
 
-    // If allowlist is defined, command must match at least one entry
+    // If allowlist is defined, the base command must match at least one entry
     if !config.allowed_commands.is_empty() {
         let allowed = config
             .allowed_commands
             .iter()
-            .any(|a| cmd_lower.contains(&a.to_lowercase()));
+            .any(|a| base_cmd == a.to_lowercase());
         return Ok(allowed);
     }
 
@@ -122,6 +162,17 @@ mod tests {
         assert!(!validate_command(&state, "rm -rf /").unwrap());
         assert!(!validate_command(&state, "mkfs.ext4 /dev/sda1").unwrap());
         assert!(!validate_command(&state, "dd if=/dev/zero of=/dev/sda").unwrap());
+    }
+
+    #[test]
+    fn test_shell_bypass_blocked() {
+        let state = SandboxServiceState::new();
+        // Shell injection patterns should be blocked
+        assert!(!validate_command(&state, "echo hello; rm -rf /").unwrap());
+        assert!(!validate_command(&state, "echo hello && rm -rf /").unwrap());
+        assert!(!validate_command(&state, "echo hello | sh").unwrap());
+        assert!(!validate_command(&state, "echo `whoami`").unwrap());
+        assert!(!validate_command(&state, "echo $(whoami)").unwrap());
     }
 
     #[test]
@@ -200,5 +251,13 @@ mod tests {
         assert!(validate_command(&state, "rm file.txt").unwrap());
         // "rm -rf /" is blocked (blocklist takes priority)
         assert!(!validate_command(&state, "rm -rf /").unwrap());
+    }
+
+    #[test]
+    fn test_extract_command_name() {
+        assert_eq!(extract_command_name("git status"), "git");
+        assert_eq!(extract_command_name("/usr/bin/rm -rf /"), "rm");
+        assert_eq!(extract_command_name("mkfs.ext4 /dev/sda1"), "mkfs.ext4");
+        assert_eq!(extract_command_name(""), "");
     }
 }

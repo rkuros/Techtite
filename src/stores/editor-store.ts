@@ -378,60 +378,56 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
  * Call once at app startup (e.g. in a top-level useEffect or App.tsx).
  */
 export function initEditorEventListeners(): () => void {
-  const unlistenPromises: Promise<() => void>[] = [];
+  const unlistenFns: (() => void)[] = [];
 
   // Listen for fs:changed — auto-reload clean files, ignore own saves
-  unlistenPromises.push(
-    listenEvent<{ path: string; changeType: string }>(
-      "fs:changed",
-      ({ path, changeType }) => {
-        if (changeType === "deleted") return;
+  listenEvent<{ path: string; changeType: string }>(
+    "fs:changed",
+    ({ path, changeType }) => {
+      if (changeType === "deleted") return;
 
-        const state = useEditorStore.getState();
+      const state = useEditorStore.getState();
 
-        // Ignore events caused by our own save
-        if (state._recentlySavedPaths.has(path)) return;
+      // Ignore events caused by our own save
+      if (state._recentlySavedPaths.has(path)) return;
 
-        // Only care about files that are currently open
-        const tab = state.openTabs.find((t) => t.filePath === path);
-        if (!tab) return;
+      // Only care about files that are currently open
+      const tab = state.openTabs.find((t) => t.filePath === path);
+      if (!tab) return;
 
-        if (state.dirtyFiles.has(path)) {
-          // File has unsaved changes — user must decide
-          // TODO: Show a reload confirmation dialog (could be implemented as a toast/modal)
-          console.warn(
-            `[Unit 2] External change to dirty file: ${path}. User action needed.`
-          );
-        } else {
-          // File is clean — auto-reload
-          state.reloadFile(path);
-        }
+      if (state.dirtyFiles.has(path)) {
+        // File has unsaved changes — user must decide
+        // TODO: Show a reload confirmation dialog (could be implemented as a toast/modal)
+        console.warn(
+          `[Unit 2] External change to dirty file: ${path}. User action needed.`
+        );
+      } else {
+        // File is clean — auto-reload
+        state.reloadFile(path);
       }
-    )
-  );
+    }
+  ).then((fn) => unlistenFns.push(fn));
 
   // Listen for fs:external_change (e.g. agent-written files)
-  unlistenPromises.push(
-    listenEvent<{ path: string; agentId?: string }>(
-      "fs:external_change",
-      ({ path }) => {
-        const state = useEditorStore.getState();
-        const tab = state.openTabs.find((t) => t.filePath === path);
-        if (!tab) return;
+  listenEvent<{ path: string; agentId?: string }>(
+    "fs:external_change",
+    ({ path }) => {
+      const state = useEditorStore.getState();
+      const tab = state.openTabs.find((t) => t.filePath === path);
+      if (!tab) return;
 
-        if (state.dirtyFiles.has(path)) {
-          console.warn(
-            `[Unit 2] Agent modified dirty file: ${path}. User action needed.`
-          );
-        } else {
-          state.reloadFile(path);
-        }
+      if (state.dirtyFiles.has(path)) {
+        console.warn(
+          `[Unit 2] Agent modified dirty file: ${path}. User action needed.`
+        );
+      } else {
+        state.reloadFile(path);
       }
-    )
-  );
+    }
+  ).then((fn) => unlistenFns.push(fn));
 
   // Return a cleanup function that unlistens all
   return () => {
-    unlistenPromises.forEach((p) => p.then((unlisten) => unlisten()));
+    unlistenFns.forEach((fn) => fn());
   };
 }

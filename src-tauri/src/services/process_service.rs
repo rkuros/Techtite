@@ -43,6 +43,7 @@ struct PtySession {
     writer: Box<dyn Write + Send>,
     master: Box<dyn portable_pty::MasterPty + Send>,
     child: Box<dyn portable_pty::Child + Send>,
+    reader_handle: Option<std::thread::JoinHandle<()>>,
 }
 
 /// Tauri-managed state for terminal/PTY process management.
@@ -152,7 +153,7 @@ pub fn create_session(
     // Spawn a std::thread to read PTY stdout and emit events
     let session_id = id.clone();
     let app = app_handle.clone();
-    std::thread::spawn(move || {
+    let reader_handle = std::thread::spawn(move || {
         let mut reader = reader;
         let mut buf = [0u8; 4096];
         loop {
@@ -185,6 +186,7 @@ pub fn create_session(
         writer,
         master: pair.master,
         child,
+        reader_handle: Some(reader_handle),
     };
 
     sessions.insert(id, session);
@@ -254,6 +256,11 @@ pub fn close_session(state: &ProcessServiceState, id: &str) -> Result<(), String
     session.child.kill().ok();
     session.handle.is_alive = false;
 
+    // Join the reader thread to avoid resource leaks
+    if let Some(handle) = session.reader_handle.take() {
+        let _ = handle.join();
+    }
+
     Ok(())
 }
 
@@ -266,7 +273,13 @@ pub fn close_all_sessions(state: &ProcessServiceState) -> Result<(), String> {
         session.handle.is_alive = false;
     }
 
-    sessions.clear();
+    // Drain sessions and join all reader threads to avoid resource leaks
+    let drained: Vec<_> = sessions.drain().collect();
+    for (_id, mut session) in drained {
+        if let Some(handle) = session.reader_handle.take() {
+            let _ = handle.join();
+        }
+    }
     Ok(())
 }
 

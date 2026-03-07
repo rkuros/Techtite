@@ -1,7 +1,7 @@
 use tauri::State;
 
 use crate::models::publish::{
-    BlogDraft, PlatformMetadata, PostTemplate, PublishResult, PublishStatus, PublishTarget, SNSPost,
+    BlogDraft, PostTemplate, PublishResult, PublishStatus, PublishTarget, SNSPost,
 };
 use crate::services::publish_service::{self, PublishServiceState};
 use crate::AppState;
@@ -167,34 +167,13 @@ pub fn publish_publish_zenn(
     draft: BlogDraft,
     publish_state: State<'_, PublishServiceState>,
 ) -> Result<PublishResult, String> {
-    // Validate that the draft has Zenn metadata
-    if let Some(PlatformMetadata::Zenn { .. }) = &draft.platform_metadata {
-        // Good - has Zenn metadata
-    } else {
-        // Allow publishing without metadata for now (stub)
-    }
-
     // TODO: Implement actual Zenn publishing workflow:
-    // 1. Generate Zenn frontmatter (emoji, type, topics, published)
-    // 2. Write to articles/ directory in Zenn repo
-    // 3. Git commit and push
-
-    // Update draft status in memory
-    let mut drafts = publish_state
-        .blog_drafts
-        .lock()
-        .map_err(|e| e.to_string())?;
-    if let Some(stored) = drafts.iter_mut().find(|d| d.id == draft.id) {
-        stored.status = PublishStatus::Published;
-        stored.published_at = Some(chrono::Utc::now().to_rfc3339());
-        stored.published_url = Some("https://zenn.dev/stub/articles/placeholder".to_string());
-    }
-
-    Ok(PublishResult {
-        success: true,
-        url: Some("https://zenn.dev/stub/articles/placeholder".to_string()),
-        error_message: None,
-    })
+    // 1. Validate that the draft has Zenn metadata
+    // 2. Generate Zenn frontmatter (emoji, type, topics, published)
+    // 3. Write to articles/ directory in Zenn repo
+    // 4. Git commit and push
+    let _ = (&draft, &publish_state);
+    Err("Not yet implemented".to_string())
 }
 
 /// Publish a blog draft to Note.
@@ -218,23 +197,8 @@ pub fn publish_publish_note(
     // 1. Get API credentials from credential_service
     // 2. Convert content to Note format
     // 3. POST to Note API
-
-    // Update draft status in memory
-    let mut drafts = publish_state
-        .blog_drafts
-        .lock()
-        .map_err(|e| e.to_string())?;
-    if let Some(stored) = drafts.iter_mut().find(|d| d.id == draft.id) {
-        stored.status = PublishStatus::Published;
-        stored.published_at = Some(chrono::Utc::now().to_rfc3339());
-        stored.published_url = Some("https://note.com/stub/n/placeholder".to_string());
-    }
-
-    Ok(PublishResult {
-        success: true,
-        url: Some("https://note.com/stub/n/placeholder".to_string()),
-        error_message: None,
-    })
+    let _ = (&draft, &publish_state);
+    Err("Not yet implemented".to_string())
 }
 
 /// Post an SNS post to X (Twitter).
@@ -266,22 +230,8 @@ pub fn publish_post_x(
     // 1. Get OAuth credentials from credential_service
     // 2. POST to X API v2 /tweets endpoint
     // 3. Parse response for tweet URL
-
-    // Update post status in memory
-    let mut posts = publish_state
-        .sns_posts
-        .lock()
-        .map_err(|e| e.to_string())?;
-    if let Some(stored) = posts.iter_mut().find(|p| p.id == post.id) {
-        stored.status = PublishStatus::Published;
-        stored.published_url = Some("https://x.com/stub/status/placeholder".to_string());
-    }
-
-    Ok(PublishResult {
-        success: true,
-        url: Some("https://x.com/stub/status/placeholder".to_string()),
-        error_message: None,
-    })
+    let _ = (&post, &publish_state);
+    Err("Not yet implemented".to_string())
 }
 
 /// Post an SNS post to Threads.
@@ -312,22 +262,8 @@ pub fn publish_post_threads(
     // 1. Get Meta OAuth credentials from credential_service
     // 2. Create media container via Graph API
     // 3. Publish the container
-
-    // Update post status in memory
-    let mut posts = publish_state
-        .sns_posts
-        .lock()
-        .map_err(|e| e.to_string())?;
-    if let Some(stored) = posts.iter_mut().find(|p| p.id == post.id) {
-        stored.status = PublishStatus::Published;
-        stored.published_url = Some("https://threads.net/@stub/post/placeholder".to_string());
-    }
-
-    Ok(PublishResult {
-        success: true,
-        url: Some("https://threads.net/@stub/post/placeholder".to_string()),
-        error_message: None,
-    })
+    let _ = (&post, &publish_state);
+    Err("Not yet implemented".to_string())
 }
 
 /// Get all stored post templates.
