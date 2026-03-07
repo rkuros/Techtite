@@ -8,6 +8,7 @@ import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store"
 import { initSemanticEventListeners } from "@/stores/semantic-store";
 import { useVaultStore } from "@/stores/vault-store";
 import { invokeCommand, listenEvent } from "@/shared/utils/ipc";
+import { message } from "@tauri-apps/plugin-dialog";
 import { SIDEBAR_PANELS } from "@/shared/constants";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
@@ -151,10 +152,10 @@ export function AppLayout() {
           }
           break;
         case "app-settings":
-          console.log("Settings: not yet implemented");
+          await message("Settings is not yet implemented.", { title: "Techtite", kind: "info" });
           break;
         case "app-about":
-          window.alert("Techtite v0.1.0\nKnowledge-powered development environment");
+          await message("Techtite v0.1.0\nKnowledge-powered development environment", { title: "About Techtite", kind: "info" });
           break;
       }
     }).then((fn) => {
