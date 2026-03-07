@@ -39,8 +39,11 @@ export function TabBar() {
 
   return (
     <div className="flex items-center flex-1 min-w-0 h-full">
-      {/* Tabs area */}
-      <div className="flex items-center overflow-x-auto flex-1 min-w-0 h-full">
+      {/* Tabs area — scaleY(-1) flips scrollbar to top */}
+      <div
+        className="flex items-center overflow-x-auto flex-1 min-w-0 h-full"
+        style={{ transform: "scaleY(-1)" }}
+      >
         {openTabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -49,6 +52,7 @@ export function TabBar() {
               className="flex items-center gap-1.5 px-3 cursor-pointer select-none shrink-0"
               style={{
                 height: "100%",
+                transform: "scaleY(-1)",
                 borderBottom: isActive
                   ? "2px solid var(--color-accent)"
                   : "2px solid transparent",

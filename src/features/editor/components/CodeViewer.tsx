@@ -61,11 +61,19 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
   const markDirty = useEditorStore((s) => s.markDirty);
   const editorFontSize = useEditorStore((s) => s.editorFontSize);
 
-  // Extensions — only depend on filePath and language (NOT isEditable)
-  // Read-only is toggled imperatively via Compartment.reconfigure
+  // Dynamic font size extension
+  const fontSizeTheme = useMemo(() =>
+    EditorView.theme({
+      ".cm-content": { fontSize: `${editorFontSize}px` },
+      ".cm-gutters": { fontSize: `${editorFontSize - 1}px` },
+    }),
+  [editorFontSize]);
+
+  // Extensions — recreate when filePath, language, or fontSize changes
   const extensions = useMemo(() => {
     const exts: import("@codemirror/state").Extension[] = [
       lineWrapping,
+      fontSizeTheme,
       readOnlyCompartment.of(EditorView.editable.of(false)),
       keymap.of([{
         key: "Mod-s",
@@ -80,7 +88,7 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
       exts.push(desc.support);
     }
     return exts;
-  }, [tab.filePath, language]);
+  }, [tab.filePath, language, fontSizeTheme]);
 
   // Register EditorViewRef
   useEffect(() => {

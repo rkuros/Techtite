@@ -15,7 +15,7 @@ const techtiteThemeOverride = EditorView.theme(
     ".cm-content": {
       padding: "24px 48px", caretColor: "#89b4fa",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      fontSize: "inherit", lineHeight: "1.7",
+      lineHeight: "1.7",
     },
     ".cm-cursor": { borderLeftColor: "#89b4fa" },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
@@ -67,7 +67,15 @@ export const MarkdownEditor = React.memo(
     const editorFontSize = useEditorStore((s) => s.editorFontSize);
 
 
-    // Memoize extensions — only recreate when filePath changes
+    // Dynamic font size extension — recreated when editorFontSize changes
+    const fontSizeTheme = useMemo(() =>
+      EditorView.theme({
+        ".cm-content": { fontSize: `${editorFontSize}px` },
+        ".cm-gutters": { fontSize: `${editorFontSize - 1}px` },
+      }),
+    [editorFontSize]);
+
+    // Memoize extensions — recreate when filePath or fontSize changes
     const extensions = useMemo(() => [
       hybridMarkdown({
         theme: "dark",
@@ -76,6 +84,7 @@ export const MarkdownEditor = React.memo(
         enableCollapse: true,
       }),
       techtiteThemeOverride,
+      fontSizeTheme,
       staticBlockquoteExt,
       staticLineWrapping,
       keymap.of([{
@@ -85,7 +94,7 @@ export const MarkdownEditor = React.memo(
           return true;
         },
       }]),
-    ], [tab.filePath]);
+    ], [tab.filePath, fontSizeTheme]);
 
     // Register EditorViewRef for store integration
     useEffect(() => {
