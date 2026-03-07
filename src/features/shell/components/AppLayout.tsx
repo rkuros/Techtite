@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import {
   Panel,
   PanelGroup,
   PanelResizeHandle,
+  type ImperativePanelHandle,
 } from "react-resizable-panels";
 import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store";
 import { initSemanticEventListeners } from "@/stores/semantic-store";
@@ -29,12 +30,41 @@ import { LogsPanel } from "@/features/reliability";
 import { PublishPanel } from "@/features/publishing";
 import { CostStatusBadge } from "@/features/guardrails";
 import { AIChat, RAGStatusIndicator } from "@/features/semantic-search";
+import { SettingsModal } from "./SettingsModal";
 
 export function AppLayout() {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const currentVault = useVaultStore((s) => s.currentVault);
   const isRestoring = useVaultStore((s) => s.isRestoring);
   const restoreSession = useVaultStore((s) => s.restoreSession);
   const activeSidebarPanel = useEditorStore((s) => s.activeSidebarPanel);
+  const sidebarCollapsed = useEditorStore((s) => s.sidebarCollapsed);
+  const editorCollapsed = useEditorStore((s) => s.editorCollapsed);
+  const terminalCollapsed = useEditorStore((s) => s.terminalCollapsed);
+  const setSidebarCollapsed = useEditorStore((s) => s.setSidebarCollapsed);
+  const setEditorCollapsed = useEditorStore((s) => s.setEditorCollapsed);
+  const setTerminalCollapsed = useEditorStore((s) => s.setTerminalCollapsed);
+
+  // Panel refs for imperative collapse/expand
+  const sidebarRef = useRef<ImperativePanelHandle>(null);
+  const editorRef = useRef<ImperativePanelHandle>(null);
+  const terminalRef = useRef<ImperativePanelHandle>(null);
+
+  // Sync panel refs with store state
+  const togglePanel = useCallback((
+    ref: React.RefObject<ImperativePanelHandle | null>,
+    collapsed: boolean,
+  ) => {
+    if (collapsed) {
+      ref.current?.collapse();
+    } else {
+      ref.current?.expand();
+    }
+  }, []);
+
+  useEffect(() => { togglePanel(sidebarRef, sidebarCollapsed); }, [sidebarCollapsed, togglePanel]);
+  useEffect(() => { togglePanel(editorRef, editorCollapsed); }, [editorCollapsed, togglePanel]);
+  useEffect(() => { togglePanel(terminalRef, terminalCollapsed); }, [terminalCollapsed, togglePanel]);
 
   // Restore last session on mount
   useEffect(() => {
@@ -51,7 +81,7 @@ export function AppLayout() {
     };
   }, []);
 
-  // Global zoom shortcuts: Cmd+= / Cmd+- / Cmd+0
+  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return;
@@ -65,6 +95,12 @@ export function AppLayout() {
       } else if (e.key === "0") {
         e.preventDefault();
         store.resetZoom();
+      } else if (e.key === "b") {
+        e.preventDefault();
+        store.toggleSidebar();
+      } else if (e.key === "j") {
+        e.preventDefault();
+        store.toggleTerminal();
       }
     };
     window.addEventListener("keydown", handler);
@@ -152,7 +188,7 @@ export function AppLayout() {
           }
           break;
         case "app-settings":
-          await message("Settings is not yet implemented.", { title: "Techtite", kind: "info" });
+          setSettingsOpen(true);
           break;
         case "app-about":
           await message("Techtite v0.1.0\nKnowledge-powered development environment", { title: "About Techtite", kind: "info" });
@@ -200,6 +236,27 @@ export function AppLayout() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
+      {/* Title bar row — spans full width, overlays macOS traffic lights */}
+      <div
+        className="flex items-center shrink-0"
+        data-tauri-drag-region
+        style={{
+          height: 38,
+          minHeight: 38,
+          backgroundColor: "var(--color-tabbar-bg)",
+          borderBottom: "1px solid var(--color-border-subtle)",
+        }}
+      >
+        {/* Left: traffic light padding (macOS) + ribbon width */}
+        <div
+          data-tauri-drag-region
+          style={{ width: 44 + 80, minWidth: 44 + 80 }}
+        />
+
+        {/* Editor tabs + panel toggles */}
+        <TabBar />
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Ribbon */}
         <Ribbon />
@@ -207,7 +264,16 @@ export function AppLayout() {
         {/* Main content area with resizable panels */}
         <PanelGroup direction="horizontal" className="flex-1">
           {/* Left Sidebar */}
-          <Panel defaultSize={20} minSize={15} maxSize={40}>
+          <Panel
+            ref={sidebarRef}
+            defaultSize={20}
+            minSize={15}
+            maxSize={40}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setSidebarCollapsed(true)}
+            onExpand={() => setSidebarCollapsed(false)}
+          >
             <div
               className="h-full overflow-y-auto"
               style={{
@@ -222,12 +288,19 @@ export function AppLayout() {
           <PanelResizeHandle className="w-[1px] bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
 
           {/* Center Area */}
-          <Panel defaultSize={60} minSize={30}>
+          <Panel
+            ref={editorRef}
+            defaultSize={60}
+            minSize={20}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setEditorCollapsed(true)}
+            onExpand={() => setEditorCollapsed(false)}
+          >
             <div
               className="flex flex-col h-full"
               onFocus={() => useEditorStore.getState().setActiveZone("editor")}
             >
-              <TabBar />
               <PaneContainer />
             </div>
           </Panel>
@@ -235,7 +308,15 @@ export function AppLayout() {
           <PanelResizeHandle className="w-[1px] bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
 
           {/* Right Terminal */}
-          <Panel defaultSize={20} minSize={0} collapsible>
+          <Panel
+            ref={terminalRef}
+            defaultSize={0}
+            minSize={15}
+            collapsible
+            collapsedSize={0}
+            onCollapse={() => setTerminalCollapsed(true)}
+            onExpand={() => setTerminalCollapsed(false)}
+          >
             <div
               className="h-full"
               style={{
@@ -264,6 +345,9 @@ export function AppLayout() {
 
       {/* Floating AI Chat */}
       <AIChat />
+
+      {/* Settings Modal */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

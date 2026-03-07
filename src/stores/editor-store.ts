@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { PaneLayout, TabState } from "@/types/editor";
 import { invokeCommand, listenEvent } from "@/shared/utils/ipc";
+import { applyTheme } from "@/styles/themes";
 
 // ---------------------------------------------------------------------------
 // Unit 2: Editor-specific state types
@@ -30,6 +31,21 @@ interface EditorStoreState {
   sidebarWidth: number;
   terminalHeight: number;
   activeSidebarPanel: string;
+
+  // Theme
+  themeId: string;
+  setTheme: (themeId: string) => void;
+
+  // Panel collapse state
+  sidebarCollapsed: boolean;
+  editorCollapsed: boolean;
+  terminalCollapsed: boolean;
+  toggleSidebar: () => void;
+  toggleEditor: () => void;
+  toggleTerminal: () => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setEditorCollapsed: (collapsed: boolean) => void;
+  setTerminalCollapsed: (collapsed: boolean) => void;
 
   // Zoom / font size
   editorFontSize: number;
@@ -118,6 +134,21 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   sidebarWidth: 240,
   terminalHeight: 0,
   activeSidebarPanel: "projects",
+  themeId: localStorage.getItem("techtite-theme") ?? "catppuccin-mocha",
+  setTheme: (themeId) => {
+    localStorage.setItem("techtite-theme", themeId);
+    applyTheme(themeId);
+    set({ themeId });
+  },
+  sidebarCollapsed: false,
+  editorCollapsed: false,
+  terminalCollapsed: true,
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  toggleEditor: () => set((s) => ({ editorCollapsed: !s.editorCollapsed })),
+  toggleTerminal: () => set((s) => ({ terminalCollapsed: !s.terminalCollapsed })),
+  setSidebarCollapsed: (collapsed) => set({ sidebarCollapsed: collapsed }),
+  setEditorCollapsed: (collapsed) => set({ editorCollapsed: collapsed }),
+  setTerminalCollapsed: (collapsed) => set({ terminalCollapsed: collapsed }),
   editorFontSize: 14,
   terminalFontSize: 13,
   activeZone: "editor",
