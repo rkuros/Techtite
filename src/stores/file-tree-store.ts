@@ -3,7 +3,7 @@ import Fuse, { type IFuseOptions } from "fuse.js";
 
 import { invokeCommand } from "@/shared/utils/ipc";
 import { useVaultStore } from "@/stores/vault-store";
-import type { FileEntry } from "@/types/file";
+import type { FileEntry, FileMetadata } from "@/types/file";
 
 // ---- Types ----
 
@@ -28,6 +28,9 @@ interface FileTreeStoreState {
   selectedPath: string | null;
   isLoading: boolean;
 
+  // File metadata (for selected file)
+  selectedMetadata: FileMetadata | null;
+
   // Command registry
   commandRegistry: CommandEntry[];
 
@@ -38,6 +41,7 @@ interface FileTreeStoreState {
   expandDir: (dirPath: string) => void;
   collapseDir: (dirPath: string) => void;
   selectNode: (path: string) => void;
+  fetchMetadata: (path: string) => Promise<FileMetadata | null>;
 
   // File CRUD (via Unit 1 IPC)
   createFile: (dirPath: string, fileName: string, content?: string) => Promise<void>;
@@ -134,6 +138,7 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
   expandedDirs: new Set<string>(),
   selectedPath: null,
   isLoading: false,
+  selectedMetadata: null,
   commandRegistry: [],
 
   loadTree: async () => {
@@ -213,6 +218,20 @@ export const useFileTreeStore = create<FileTreeStoreState>((set, get) => ({
 
   selectNode: (path: string) => {
     set({ selectedPath: path });
+  },
+
+  fetchMetadata: async (path: string): Promise<FileMetadata | null> => {
+    try {
+      const metadata = await invokeCommand<FileMetadata>("get_metadata", {
+        path,
+      });
+      set({ selectedMetadata: metadata });
+      return metadata;
+    } catch (err) {
+      console.error("Failed to fetch file metadata:", err);
+      set({ selectedMetadata: null });
+      return null;
+    }
   },
 
   // ---- File CRUD operations (delegating to Unit 1 IPC) ----

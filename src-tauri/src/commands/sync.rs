@@ -1,4 +1,4 @@
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::models::git::{ConflictInfo, ConflictResolution, SyncState};
 use crate::services::{conflict_service, git_service};
@@ -16,7 +16,10 @@ pub fn get_state(_state: State<'_, AppState>) -> Result<SyncState, String> {
 /// Trigger an immediate sync (bypass the interval timer).
 /// IPC: sync:trigger_now
 #[tauri::command]
-pub fn trigger_now(_state: State<'_, AppState>) -> Result<(), String> {
+pub fn trigger_now(
+    app_handle: tauri::AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<(), String> {
     // TODO: Call sync_scheduler.trigger_now() from AppState.
     // The sync scheduler needs to be added to AppState and initialized
     // during app setup.
@@ -24,6 +27,12 @@ pub fn trigger_now(_state: State<'_, AppState>) -> Result<(), String> {
     // Example:
     // let scheduler = state.sync_scheduler.lock().map_err(|e| e.to_string())?;
     // tokio::spawn(async move { scheduler.trigger_now(&app_handle).await });
+
+    // TODO: When sync is implemented, emit sync:conflict_detected if
+    // conflicts are detected after pull:
+    // app_handle.emit("sync:conflict_detected", "").ok();
+
+    let _ = &app_handle;
 
     Ok(())
 }
@@ -81,6 +90,7 @@ pub fn get_conflicts(state: State<'_, AppState>) -> Result<Vec<ConflictInfo>, St
 /// When resolution is "ai", the system attempts AI auto-resolution.
 #[tauri::command]
 pub fn resolve_conflict(
+    app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
     path: String,
     resolution: String,
@@ -118,11 +128,7 @@ pub fn resolve_conflict(
     conflict_service::resolve_conflict(&vault.path, &path, conflict_resolution)
         .map_err(|e| e.to_string())?;
 
-    // TODO: Emit sync:conflict_resolved event
-    // app_handle.emit("sync:conflict_resolved", serde_json::json!({
-    //     "path": path,
-    //     "resolution": resolution,
-    // }))?;
+    app_handle.emit("sync:conflict_resolved", "").ok();
 
     Ok(())
 }

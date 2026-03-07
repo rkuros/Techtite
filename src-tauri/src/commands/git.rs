@@ -1,4 +1,4 @@
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::models::git::{BranchInfo, CommitInfo, DiffHunk, GitStatus};
 use crate::services::git_service;
@@ -16,13 +16,16 @@ pub fn get_status(state: State<'_, AppState>) -> Result<GitStatus, String> {
 /// Stage specified files.
 /// IPC: git:stage
 #[tauri::command]
-pub fn stage(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
+pub fn stage(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
     let vault = state.current_vault.lock().map_err(|e| e.to_string())?;
     let vault = vault.as_ref().ok_or("No vault open")?;
     git_service::stage(&vault.path, &paths).map_err(|e| e.to_string())?;
 
-    // TODO: Emit git:status_changed event after staging
-    // app_handle.emit("git:status_changed", &git_service::get_status(&vault.path)?)?;
+    app_handle.emit("git:status_changed", "").ok();
 
     Ok(())
 }
@@ -30,12 +33,16 @@ pub fn stage(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), Strin
 /// Unstage specified files.
 /// IPC: git:unstage
 #[tauri::command]
-pub fn unstage(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), String> {
+pub fn unstage(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    paths: Vec<String>,
+) -> Result<(), String> {
     let vault = state.current_vault.lock().map_err(|e| e.to_string())?;
     let vault = vault.as_ref().ok_or("No vault open")?;
     git_service::unstage(&vault.path, &paths).map_err(|e| e.to_string())?;
 
-    // TODO: Emit git:status_changed event after unstaging
+    app_handle.emit("git:status_changed", "").ok();
 
     Ok(())
 }
@@ -43,12 +50,17 @@ pub fn unstage(state: State<'_, AppState>, paths: Vec<String>) -> Result<(), Str
 /// Create a commit with the given message. Returns the commit hash.
 /// IPC: git:commit
 #[tauri::command]
-pub fn commit(state: State<'_, AppState>, message: String) -> Result<String, String> {
+pub fn commit(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    message: String,
+) -> Result<String, String> {
     let vault = state.current_vault.lock().map_err(|e| e.to_string())?;
     let vault = vault.as_ref().ok_or("No vault open")?;
     let hash = git_service::create_commit(&vault.path, &message).map_err(|e| e.to_string())?;
 
-    // TODO: Emit git:status_changed event after commit (status should reset)
+    app_handle.emit("git:status_changed", "").ok();
+
     // TODO: Notify sync_service to reset auto-commit batch timer
 
     Ok(hash)
@@ -112,12 +124,16 @@ pub fn create_branch(state: State<'_, AppState>, name: String) -> Result<(), Str
 /// Errors if there are uncommitted changes.
 /// IPC: git:checkout_branch
 #[tauri::command]
-pub fn checkout_branch(state: State<'_, AppState>, name: String) -> Result<(), String> {
+pub fn checkout_branch(
+    app_handle: tauri::AppHandle,
+    state: State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
     let vault = state.current_vault.lock().map_err(|e| e.to_string())?;
     let vault = vault.as_ref().ok_or("No vault open")?;
     git_service::checkout_branch(&vault.path, &name).map_err(|e| e.to_string())?;
 
-    // TODO: Emit git:status_changed event after branch switch
+    app_handle.emit("git:status_changed", "").ok();
 
     Ok(())
 }

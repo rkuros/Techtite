@@ -94,6 +94,9 @@ impl SyncScheduler {
         // - conflict_service::detect_conflicts() if pull has conflicts
         // - Emit sync:conflict_detected if conflicts found
 
+        // TODO: Emit sync:conflict_detected if conflicts are found:
+        // let _ = app_handle.emit("sync:conflict_detected", "");
+
         // TODO (Unit 7): Check agent_registry for Claude Code SDK availability
         //   to decide between AI-generated and template commit messages.
 

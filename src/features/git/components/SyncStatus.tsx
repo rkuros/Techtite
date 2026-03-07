@@ -17,8 +17,14 @@ export function SyncStatus() {
   const currentBranch = useGitStore((s) => s.currentBranch);
   const syncState = useGitStore((s) => s.syncState);
   const triggerSync = useGitStore((s) => s.triggerSync);
+  const fetchSyncState = useGitStore((s) => s.fetchSyncState);
   const [showPopover, setShowPopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
+
+  // Fetch current sync state on mount
+  useEffect(() => {
+    fetchSyncState();
+  }, [fetchSyncState]);
 
   // Close popover when clicking outside
   useEffect(() => {

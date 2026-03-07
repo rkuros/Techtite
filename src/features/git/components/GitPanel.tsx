@@ -17,6 +17,7 @@ export function GitPanel() {
   const error = useGitStore((s) => s.error);
   const fetchStatus = useGitStore((s) => s.fetchStatus);
   const fetchLog = useGitStore((s) => s.fetchLog);
+  const fetchConflicts = useGitStore((s) => s.fetchConflicts);
   const stageFiles = useGitStore((s) => s.stageFiles);
   const unstageFiles = useGitStore((s) => s.unstageFiles);
   const fetchDiff = useGitStore((s) => s.fetchDiff);
@@ -24,7 +25,8 @@ export function GitPanel() {
   useEffect(() => {
     fetchStatus();
     fetchLog();
-  }, [fetchStatus, fetchLog]);
+    fetchConflicts();
+  }, [fetchStatus, fetchLog, fetchConflicts]);
 
   const handleStageAll = useCallback(() => {
     if (!gitStatus) return;

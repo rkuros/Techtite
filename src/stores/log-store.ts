@@ -3,6 +3,7 @@ import { invokeCommand, listenEvent } from "@/shared/utils/ipc";
 import type {
   SessionLog,
   DailyLog,
+  CaptureEvent,
   AmbientStatus,
   TaskCheckResult,
 } from "@/types/log";
@@ -13,6 +14,9 @@ interface LogStoreState {
   dailyLogs: DailyLog[];
   activeLogId: string | null;
   activeLogContent: string | null;
+
+  // Capture events
+  captureEvents: CaptureEvent[];
 
   // Filters
   filterDate: string | null;
@@ -29,6 +33,11 @@ interface LogStoreState {
   // Actions
   fetchSessionLogs: () => Promise<void>;
   fetchDailyLogs: (date: string) => Promise<void>;
+  fetchCaptureEvents: (options?: {
+    since?: string;
+    limit?: number;
+    agentId?: string;
+  }) => Promise<void>;
   setActiveLog: (logId: string, filePath: string) => Promise<void>;
   setFilters: (date: string | null, agentName: string | null) => void;
   fetchAmbientStatus: () => Promise<void>;
@@ -42,6 +51,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
   dailyLogs: [],
   activeLogId: null,
   activeLogContent: null,
+  captureEvents: [],
   filterDate: null,
   filterAgentName: null,
   ambientStatus: {
@@ -80,6 +90,26 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
           return { dailyLogs: [...existing, daily] };
         });
       }
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  fetchCaptureEvents: async (options?: {
+    since?: string;
+    limit?: number;
+    agentId?: string;
+  }) => {
+    try {
+      const events = await invokeCommand<CaptureEvent[]>(
+        "capture_get_events",
+        {
+          since: options?.since ?? null,
+          limit: options?.limit ?? null,
+          agentId: options?.agentId ?? null,
+        }
+      );
+      set({ captureEvents: events });
     } catch (err) {
       set({ error: String(err) });
     }

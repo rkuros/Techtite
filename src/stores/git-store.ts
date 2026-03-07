@@ -35,6 +35,14 @@ interface GitStoreState {
 
   // Actions
   fetchStatus: () => Promise<void>;
+  fetchSyncState: () => Promise<void>;
+  fetchConflicts: () => Promise<void>;
+  setRemote: (
+    url: string,
+    authType: string,
+    credential: string
+  ) => Promise<void>;
+  testConnection: () => Promise<boolean>;
   stageFiles: (paths: string[]) => Promise<void>;
   unstageFiles: (paths: string[]) => Promise<void>;
   commit: (message: string) => Promise<string>;
@@ -79,6 +87,46 @@ export const useGitStore = create<GitStoreState>((set, get) => ({
       });
     } catch (err) {
       set({ error: String(err), isLoading: false });
+    }
+  },
+
+  fetchSyncState: async () => {
+    try {
+      const syncState = await invokeCommand<SyncState>("get_state");
+      set({ syncState });
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  fetchConflicts: async () => {
+    try {
+      const conflicts = await invokeCommand<ConflictInfo[]>("get_conflicts");
+      set({
+        conflicts,
+        isConflictModalOpen: conflicts.length > 0,
+      });
+    } catch (err) {
+      set({ error: String(err) });
+    }
+  },
+
+  setRemote: async (url: string, authType: string, credential: string) => {
+    try {
+      await invokeCommand("set_remote", { url, authType, credential });
+    } catch (err) {
+      set({ error: String(err) });
+      throw err;
+    }
+  },
+
+  testConnection: async () => {
+    try {
+      const result = await invokeCommand<boolean>("test_connection");
+      return result;
+    } catch (err) {
+      set({ error: String(err) });
+      throw err;
     }
   },
 

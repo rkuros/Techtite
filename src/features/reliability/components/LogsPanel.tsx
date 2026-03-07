@@ -46,12 +46,14 @@ export function LogsPanel() {
     setFilters,
     setActiveLog,
     fetchSessionLogs,
+    fetchCaptureEvents,
   } = useLogStore();
 
-  // Fetch logs on mount
+  // Fetch logs and capture events on mount
   useEffect(() => {
     fetchSessionLogs();
-  }, [fetchSessionLogs]);
+    fetchCaptureEvents();
+  }, [fetchSessionLogs, fetchCaptureEvents]);
 
   // Derive unique agent names for filter dropdown
   const agentNames = useMemo(() => {

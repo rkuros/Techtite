@@ -172,6 +172,8 @@ pub fn publish_publish_zenn(
     // 2. Generate Zenn frontmatter (emoji, type, topics, published)
     // 3. Write to articles/ directory in Zenn repo
     // 4. Git commit and push
+    // 5. Emit publish:draft_progress during generation steps
+    // 6. Emit publish:publish_progress during publishing steps
     let _ = (&draft, &publish_state);
     Err("Not yet implemented".to_string())
 }
@@ -197,6 +199,8 @@ pub fn publish_publish_note(
     // 1. Get API credentials from credential_service
     // 2. Convert content to Note format
     // 3. POST to Note API
+    // 4. Emit publish:draft_progress during generation steps
+    // 5. Emit publish:publish_progress during publishing steps
     let _ = (&draft, &publish_state);
     Err("Not yet implemented".to_string())
 }
@@ -230,6 +234,7 @@ pub fn publish_post_x(
     // 1. Get OAuth credentials from credential_service
     // 2. POST to X API v2 /tweets endpoint
     // 3. Parse response for tweet URL
+    // 4. Emit publish:publish_progress during posting steps
     let _ = (&post, &publish_state);
     Err("Not yet implemented".to_string())
 }
@@ -262,6 +267,7 @@ pub fn publish_post_threads(
     // 1. Get Meta OAuth credentials from credential_service
     // 2. Create media container via Graph API
     // 3. Publish the container
+    // 4. Emit publish:publish_progress during posting steps
     let _ = (&post, &publish_state);
     Err("Not yet implemented".to_string())
 }

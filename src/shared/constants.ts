@@ -10,7 +10,6 @@ export const SIDEBAR_PANELS = {
   AGENTS: "agents",
   LOGS: "logs",
   PUBLISH: "publish",
-  SETTINGS: "settings",
 } as const;
 
 export type SidebarPanel =

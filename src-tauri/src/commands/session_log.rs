@@ -6,6 +6,14 @@ use crate::services::fs_service;
 use crate::services::session_log_service::{self, SessionLogServiceState};
 use crate::AppState;
 
+// TODO: When a session_log_create command is added, emit:
+//   app_handle.emit("session_log:new_entry", "").ok();
+// after successfully calling session_log_service::create_session_log().
+//
+// TODO: When ambient check is triggered via a command, emit:
+//   app_handle.emit("ambient:check_completed", "").ok();
+// after ambient_service::run_check() succeeds.
+
 /// List session logs with optional date and agent name filters.
 ///
 /// IPC: `session_log:list`

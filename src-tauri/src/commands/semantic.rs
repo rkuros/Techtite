@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use tauri::State;
+use tauri::{Emitter, State};
 
 use crate::models::semantic::{ChatResponse, HybridSearchResult, IndexStatus, SemanticSearchResult};
 use crate::services::embedding_service::{self, EmbeddingServiceState};
@@ -93,6 +93,7 @@ pub fn semantic_get_index_status(
 /// and stores the vectors in the SQLite database.
 #[tauri::command]
 pub fn semantic_rebuild_index(
+    app_handle: tauri::AppHandle,
     app_state: State<'_, AppState>,
     embedding_state: State<'_, EmbeddingServiceState>,
     vector_state: State<'_, VectorStoreState>,
@@ -171,6 +172,15 @@ pub fn semantic_rebuild_index(
         indexed_count += 1;
         if indexed_count % 10 == 0 {
             println!("[Unit 5] Indexed {}/{} files", indexed_count, total_files);
+            app_handle
+                .emit(
+                    "semantic:index_progress",
+                    serde_json::json!({
+                        "indexed": indexed_count,
+                        "total": total_files,
+                    }),
+                )
+                .ok();
         }
     }
 
@@ -186,6 +196,8 @@ pub fn semantic_rebuild_index(
         "[Unit 5] Semantic index rebuild complete: {}/{} files indexed",
         indexed_count, total_files
     );
+
+    app_handle.emit("semantic:index_completed", "").ok();
 
     Ok(())
 }

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use tauri::Emitter;
-use tauri::menu::{MenuBuilder, SubmenuBuilder};
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 
 use models::vault::Vault;
 use services::watcher_service::WatcherState;
@@ -179,6 +179,16 @@ pub fn run() {
         ])
         .setup(|app| {
             // Native menu bar
+            let settings_item = MenuItemBuilder::with_id("app-settings", "Settings...")
+                .accelerator("CmdOrCtrl+,")
+                .build(app)?;
+
+            let app_menu = SubmenuBuilder::new(app, "Techtite")
+                .item(&settings_item)
+                .separator()
+                .text("app-about", "About Techtite")
+                .build()?;
+
             let vault_menu = SubmenuBuilder::new(app, "Vault")
                 .text("vault-create", "Create New Vault...")
                 .text("vault-open", "Open Vault...")
@@ -203,6 +213,7 @@ pub fn run() {
                 .build()?;
 
             let menu = MenuBuilder::new(app)
+                .item(&app_menu)
                 .item(&vault_menu)
                 .item(&edit_menu)
                 .item(&window_menu)
@@ -216,6 +227,8 @@ pub fn run() {
                     "vault-open" => { let _ = app_handle.emit("menu-event", "vault-open"); }
                     "vault-close" => { let _ = app_handle.emit("menu-event", "vault-close"); }
                     "vault-delete" => { let _ = app_handle.emit("menu-event", "vault-delete"); }
+                    "app-settings" => { let _ = app_handle.emit("menu-event", "app-settings"); }
+                    "app-about" => { let _ = app_handle.emit("menu-event", "app-about"); }
                     _ => {}
                 }
             });

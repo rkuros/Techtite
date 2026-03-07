@@ -7,8 +7,11 @@ import {
 import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store";
 import { initSemanticEventListeners } from "@/stores/semantic-store";
 import { useVaultStore } from "@/stores/vault-store";
-import { listenEvent } from "@/shared/utils/ipc";
+import { invokeCommand, listenEvent } from "@/shared/utils/ipc";
 import { SIDEBAR_PANELS } from "@/shared/constants";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { LogicalSize, LogicalPosition } from "@tauri-apps/api/dpi";
+import type { WindowState } from "@/types/editor";
 import { Ribbon } from "./Ribbon";
 import { TabBar } from "./TabBar";
 import { PaneContainer } from "./PaneContainer";
@@ -67,6 +70,60 @@ export function AppLayout() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
+  // Restore window state on mount, save on beforeunload
+  useEffect(() => {
+    // Load saved window state
+    invokeCommand<WindowState | null>("load_state")
+      .then(async (savedState) => {
+        if (!savedState) return;
+        try {
+          const win = getCurrentWindow();
+          await win.setSize(new LogicalSize(savedState.width, savedState.height));
+          await win.setPosition(new LogicalPosition(savedState.x, savedState.y));
+          if (savedState.maximized) {
+            await win.maximize();
+          }
+        } catch {
+          // Window API may not be available in all environments
+        }
+        // Apply editor layout state
+        const editorStore = useEditorStore.getState();
+        if (savedState.activeSidebarPanel) {
+          editorStore.setSidebarPanel(savedState.activeSidebarPanel);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load window state:", err);
+      });
+
+    // Save window state before unload
+    const handleBeforeUnload = () => {
+      try {
+        const editorState = useEditorStore.getState();
+        const state: WindowState = {
+          width: window.outerWidth,
+          height: window.outerHeight,
+          x: window.screenX,
+          y: window.screenY,
+          maximized: false,
+          paneLayout: editorState.paneLayout,
+          openTabs: editorState.openTabs,
+          sidebarWidth: editorState.sidebarWidth,
+          terminalHeight: editorState.terminalHeight,
+          activeSidebarPanel: editorState.activeSidebarPanel,
+        };
+        invokeCommand("save_state", { state }).catch(() => {});
+      } catch {
+        // Best-effort save; ignore errors during shutdown
+      }
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   // Listen for native menu events
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -92,6 +149,12 @@ export function AppLayout() {
           )) {
             await store.deleteVault();
           }
+          break;
+        case "app-settings":
+          console.log("Settings: not yet implemented");
+          break;
+        case "app-about":
+          window.alert("Techtite v0.1.0\nKnowledge-powered development environment");
           break;
       }
     }).then((fn) => {
@@ -233,9 +296,7 @@ function SidebarContent({ panel }: { panel: string }) {
 }
 
 function SidebarPlaceholder({ panel }: { panel: string }) {
-  const labels: Record<string, string> = {
-    settings: "Settings",
-  };
+  const labels: Record<string, string> = {};
 
   return (
     <div

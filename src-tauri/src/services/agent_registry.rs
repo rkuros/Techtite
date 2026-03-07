@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+use tauri::Emitter;
+
 use crate::models::agent::{AgentInfo, AgentStatus, OperationLogEntry, OperationType};
 
 /// Maximum number of concurrent agents allowed.
@@ -111,6 +113,8 @@ pub fn update_current_task(
 /// Stores the entry in the in-memory buffer (capped at MAX_IN_MEMORY_LOG_ENTRIES)
 /// and appends to the on-disk log at `<vault>/.techtite/agent_logs/`.
 ///
+/// If `app_handle` is provided, emits `agent:operation_log` to the frontend.
+///
 /// Called when:
 /// - stream-json `type: "tool_use"` events indicate file operations
 /// - File system watcher detects changes attributed to an agent
@@ -118,7 +122,20 @@ pub fn record_operation(
     state: &AgentRegistryState,
     entry: OperationLogEntry,
 ) -> Result<(), String> {
+    record_operation_with_emit(state, entry, None)
+}
+
+/// Record an operation and optionally emit `agent:operation_log` event.
+pub fn record_operation_with_emit(
+    state: &AgentRegistryState,
+    entry: OperationLogEntry,
+    app_handle: Option<&tauri::AppHandle>,
+) -> Result<(), String> {
     let mut log = state.operation_log.lock().map_err(|e| e.to_string())?;
+
+    if let Some(handle) = app_handle {
+        handle.emit("agent:operation_log", &entry).ok();
+    }
 
     log.push(entry);
 
@@ -195,6 +212,7 @@ pub fn parse_stream_json_line(
     agent_id: &str,
     agent_name: &str,
     line: &str,
+    app_handle: Option<&tauri::AppHandle>,
 ) -> Result<Option<OperationLogEntry>, String> {
     let value: serde_json::Value =
         serde_json::from_str(line).map_err(|e| format!("Failed to parse stream-json: {e}"))?;
@@ -261,7 +279,7 @@ pub fn parse_stream_json_line(
                     summary,
                 };
 
-                record_operation(state, entry.clone())?;
+                record_operation_with_emit(state, entry.clone(), app_handle)?;
                 Ok(Some(entry))
             } else {
                 Ok(None)
@@ -380,7 +398,7 @@ mod tests {
         register(&state, make_agent("a1", "Agent 1")).unwrap();
 
         let line = r#"{"type": "assistant", "message": "Analyzing the codebase..."}"#;
-        let result = parse_stream_json_line(&state, "a1", "Agent 1", line).unwrap();
+        let result = parse_stream_json_line(&state, "a1", "Agent 1", line, None).unwrap();
         assert!(result.is_none());
 
         let agent = get(&state, "a1").unwrap().unwrap();
@@ -393,7 +411,7 @@ mod tests {
         register(&state, make_agent("a1", "Agent 1")).unwrap();
 
         let line = r#"{"type": "tool_use", "name": "edit_file", "input": {"path": "src/lib.rs", "description": "Added new module"}}"#;
-        let result = parse_stream_json_line(&state, "a1", "Agent 1", line).unwrap();
+        let result = parse_stream_json_line(&state, "a1", "Agent 1", line, None).unwrap();
         assert!(result.is_some());
 
         let entry = result.unwrap();
@@ -407,7 +425,7 @@ mod tests {
         register(&state, make_agent("a1", "Agent 1")).unwrap();
 
         let line = r#"{"type": "result", "status": "success"}"#;
-        parse_stream_json_line(&state, "a1", "Agent 1", line).unwrap();
+        parse_stream_json_line(&state, "a1", "Agent 1", line, None).unwrap();
 
         let agent = get(&state, "a1").unwrap().unwrap();
         assert!(matches!(agent.status, AgentStatus::Completed));

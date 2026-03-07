@@ -117,7 +117,7 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   },
   sidebarWidth: 240,
   terminalHeight: 0,
-  activeSidebarPanel: "files",
+  activeSidebarPanel: "projects",
   editorFontSize: 14,
   terminalFontSize: 13,
   activeZone: "editor",

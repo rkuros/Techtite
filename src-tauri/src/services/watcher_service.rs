@@ -97,6 +97,7 @@ fn handle_fs_event(app_handle: &AppHandle, vault_root: &PathBuf, event: Event) {
         };
 
         let _ = app_handle.emit("fs:changed", &payload);
+        let _ = app_handle.emit("fs:external_change", &payload);
 
         // Record as capture event
         let capture_event_type = match event.kind {
