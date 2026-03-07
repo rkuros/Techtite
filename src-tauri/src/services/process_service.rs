@@ -81,6 +81,7 @@ pub fn create_session(
     id: String,
     label: String,
     agent_id: Option<String>,
+    cwd: Option<String>,
 ) -> Result<ProcessHandle, String> {
     let mut sessions = state.sessions.lock().map_err(|e| e.to_string())?;
 
@@ -112,6 +113,14 @@ pub fn create_session(
     cmd.env("COLORTERM", "truecolor");
     // Remove CLAUDECODE env var so Claude Code can be launched from Techtite's terminal
     cmd.env_remove("CLAUDECODE");
+
+    // Set working directory if provided
+    if let Some(ref dir) = cwd {
+        let path = std::path::Path::new(dir);
+        if path.is_dir() {
+            cmd.cwd(path);
+        }
+    }
 
     // Spawn child on the slave side
     let child = pair
@@ -269,8 +278,8 @@ pub fn spawn_claude_cli(
     label: String,
     agent_id: String,
     _initial_prompt: Option<String>,
-    _working_directory: Option<String>,
+    working_directory: Option<String>,
 ) -> Result<ProcessHandle, String> {
-    let handle = create_session(state, app_handle, session_id, label, Some(agent_id))?;
+    let handle = create_session(state, app_handle, session_id, label, Some(agent_id), working_directory)?;
     Ok(handle)
 }

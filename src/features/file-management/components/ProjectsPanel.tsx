@@ -1,22 +1,28 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { useVaultStore } from "@/stores/vault-store";
+import { useEditorStore } from "@/stores/editor-store";
 import { useFileTreeStore } from "@/stores/file-tree-store";
+import { SIDEBAR_PANELS } from "@/shared/constants";
 import type { Project } from "@/types/vault";
 
 export function ProjectsPanel() {
   const projects = useVaultStore((s) => s.projects);
   const currentProject = useVaultStore((s) => s.currentProject);
   const currentVault = useVaultStore((s) => s.currentVault);
+  const browsingProject = useVaultStore((s) => s.browsingProject);
   const setProject = useVaultStore((s) => s.setProject);
   const clearProject = useVaultStore((s) => s.clearProject);
   const loadProjects = useVaultStore((s) => s.loadProjects);
   const addCustomProject = useVaultStore((s) => s.addCustomProject);
   const removeCustomProject = useVaultStore((s) => s.removeCustomProject);
+  const setBrowsingProject = useVaultStore((s) => s.setBrowsingProject);
   const createDir = useFileTreeStore((s) => s.createDir);
+  const setSidebarPanel = useEditorStore((s) => s.setSidebarPanel);
 
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -24,14 +30,15 @@ export function ProjectsPanel() {
     project: Project | null;
   }>({ visible: false, x: 0, y: 0, project: null });
 
-  // Load projects on mount
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
 
-  // Close context menu on outside click
   useEffect(() => {
-    const handler = () => setContextMenu((prev) => ({ ...prev, visible: false }));
+    const handler = () => {
+      setContextMenu((prev) => ({ ...prev, visible: false }));
+      setShowAddMenu(false);
+    };
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
@@ -42,13 +49,10 @@ export function ProjectsPanel() {
       setIsCreating(false);
       return;
     }
-
     try {
-      // Create directory in vault root (clearProject first to ensure we're at vault root)
       await clearProject();
       await createDir("", trimmed);
       await loadProjects();
-      // Find and select the new project
       const { projects: updated } = useVaultStore.getState();
       const newProject = updated.find((p) => p.name === trimmed);
       if (newProject) {
@@ -57,20 +61,34 @@ export function ProjectsPanel() {
     } catch (err) {
       console.error("Failed to create project:", err);
     }
-
     setIsCreating(false);
     setNewProjectName("");
   }, [newProjectName, clearProject, createDir, loadProjects, setProject]);
 
+  // Single click: preview project in main area column browser
+  const handleProjectClick = useCallback(
+    (project: Project) => {
+      setBrowsingProject(
+        browsingProject?.id === project.id ? null : project
+      );
+    },
+    [browsingProject, setBrowsingProject]
+  );
+
+  // Double click: activate project + go to Files panel
+  const handleProjectDoubleClick = useCallback(
+    async (project: Project) => {
+      setBrowsingProject(null);
+      await setProject(project);
+      setSidebarPanel(SIDEBAR_PANELS.FILES);
+    },
+    [setProject, setSidebarPanel, setBrowsingProject]
+  );
+
   const handleContextMenu = useCallback(
     (e: React.MouseEvent, project: Project) => {
       e.preventDefault();
-      setContextMenu({
-        visible: true,
-        x: e.clientX,
-        y: e.clientY,
-        project,
-      });
+      setContextMenu({ visible: true, x: e.clientX, y: e.clientY, project });
     },
     []
   );
@@ -80,33 +98,51 @@ export function ProjectsPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 text-[11px] font-semibold tracking-wider text-[var(--text-secondary,#8b8b96)] uppercase">
         <span>Projects</span>
-        <div className="flex gap-1">
+        <div className="relative">
           <button
             className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover,#23252f)] text-[14px]"
-            onClick={() => {
-              setIsCreating(true);
-              setNewProjectName("");
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowAddMenu(!showAddMenu);
             }}
-            title="New Project"
+            title="Add Project"
           >
             +
           </button>
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded hover:bg-[var(--bg-hover,#23252f)] text-[11px]"
-            onClick={addCustomProject}
-            title="Add External Project"
-          >
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              className="w-3.5 h-3.5"
-              stroke="currentColor"
-              strokeWidth="1.5"
+          {showAddMenu && (
+            <div
+              className="absolute right-0 top-full mt-1 min-w-[180px] py-1 rounded-md shadow-lg border z-50"
+              style={{
+                backgroundColor: "var(--color-bg-surface, #1e2028)",
+                borderColor: "var(--color-border-subtle, #2e303a)",
+              }}
+              onClick={(e) => e.stopPropagation()}
             >
-              <path d="M8 1v14M1 8h14" />
-              <path d="M12 4l2 2-2 2" />
-            </svg>
-          </button>
+              <button
+                className="w-full text-left px-3 py-1.5 text-[13px] transition-colors hover:bg-[var(--accent,#7c6fe0)] hover:text-white flex items-center gap-2"
+                style={{ color: "var(--color-text-primary)" }}
+                onClick={() => {
+                  setShowAddMenu(false);
+                  setIsCreating(true);
+                  setNewProjectName("");
+                }}
+              >
+                <span className="text-[14px]">📂</span>
+                New Project
+              </button>
+              <button
+                className="w-full text-left px-3 py-1.5 text-[13px] transition-colors hover:bg-[var(--accent,#7c6fe0)] hover:text-white flex items-center gap-2"
+                style={{ color: "var(--color-text-primary)" }}
+                onClick={() => {
+                  setShowAddMenu(false);
+                  addCustomProject();
+                }}
+              >
+                <span className="text-[14px]">🔗</span>
+                Import External Folder
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -146,13 +182,19 @@ export function ProjectsPanel() {
               ? "var(--color-bg-surface, #1e2028)"
               : "transparent",
           }}
-          onClick={clearProject}
+          onClick={() => {
+            clearProject();
+            setBrowsingProject(null);
+          }}
+          onDoubleClick={() => {
+            setBrowsingProject(null);
+            setSidebarPanel(SIDEBAR_PANELS.FILES);
+          }}
         >
           <span className="text-[14px]">🏠</span>
           <span className="truncate">{currentVault?.name ?? "All Files"}</span>
         </button>
 
-        {/* Divider */}
         {projects.length > 0 && (
           <div
             className="mx-3 my-1"
@@ -160,9 +202,9 @@ export function ProjectsPanel() {
           />
         )}
 
-        {/* Projects */}
         {projects.map((project) => {
           const isActive = currentProject?.id === project.id;
+          const isBrowsing = browsingProject?.id === project.id;
           return (
             <button
               key={project.id}
@@ -171,18 +213,34 @@ export function ProjectsPanel() {
                 color: isActive
                   ? "var(--color-text-accent, #a78bfa)"
                   : "var(--color-text-primary)",
-                backgroundColor: isActive
+                backgroundColor: isBrowsing
                   ? "var(--color-bg-surface, #1e2028)"
-                  : "transparent",
+                  : isActive
+                    ? "var(--color-bg-surface, #1e2028)"
+                    : "transparent",
+                borderLeft: isBrowsing
+                  ? "2px solid var(--color-accent, #7c6fe0)"
+                  : "2px solid transparent",
               }}
-              onClick={() => setProject(project)}
+              onClick={() => handleProjectClick(project)}
+              onDoubleClick={() => handleProjectDoubleClick(project)}
               onContextMenu={(e) => handleContextMenu(e, project)}
             >
-              <span className="text-[14px]">{project.isCustom ? "🔗" : "📂"}</span>
+              <span className="text-[14px] flex-shrink-0">
+                {project.isCustom ? "🔗" : "📂"}
+              </span>
               <span className="truncate flex-1 text-left">{project.name}</span>
+              {isActive && (
+                <span
+                  className="text-[9px] flex-shrink-0"
+                  style={{ color: "var(--color-text-accent, #a78bfa)" }}
+                >
+                  ●
+                </span>
+              )}
               {project.isCustom && (
                 <span
-                  className="text-[10px] px-1 rounded"
+                  className="text-[10px] px-1 rounded flex-shrink-0"
                   style={{
                     color: "var(--color-text-muted)",
                     backgroundColor: "var(--color-bg-primary, #16181f)",
@@ -195,9 +253,11 @@ export function ProjectsPanel() {
           );
         })}
 
-        {/* Empty state */}
         {projects.length === 0 && !isCreating && (
-          <div className="px-4 py-6 text-center text-[13px]" style={{ color: "var(--color-text-muted)" }}>
+          <div
+            className="px-4 py-6 text-center text-[13px]"
+            style={{ color: "var(--color-text-muted)" }}
+          >
             No projects yet.
             <br />
             <button
@@ -214,7 +274,7 @@ export function ProjectsPanel() {
         )}
       </div>
 
-      {/* Context menu for custom projects */}
+      {/* Context menu */}
       {contextMenu.visible && contextMenu.project?.isCustom && (
         <div
           className="fixed z-50 min-w-[140px] py-1 rounded-md shadow-lg border"

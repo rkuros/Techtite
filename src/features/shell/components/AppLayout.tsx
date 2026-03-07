@@ -7,6 +7,7 @@ import {
 import { useEditorStore, initEditorEventListeners } from "@/stores/editor-store";
 import { initSemanticEventListeners } from "@/stores/semantic-store";
 import { useVaultStore } from "@/stores/vault-store";
+import { listenEvent } from "@/shared/utils/ipc";
 import { SIDEBAR_PANELS } from "@/shared/constants";
 import { Ribbon } from "./Ribbon";
 import { TabBar } from "./TabBar";
@@ -44,6 +45,54 @@ export function AppLayout() {
       cleanupEditor();
       cleanupSemantic();
     };
+  }, []);
+
+  // Global zoom shortcuts: Cmd+= / Cmd+- / Cmd+0
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const store = useEditorStore.getState();
+      if (e.key === "=" || e.key === "+") {
+        e.preventDefault();
+        store.zoomIn();
+      } else if (e.key === "-") {
+        e.preventDefault();
+        store.zoomOut();
+      } else if (e.key === "0") {
+        e.preventDefault();
+        store.resetZoom();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  // Listen for native menu events
+  useEffect(() => {
+    const unlistenPromise = listenEvent<string>("menu-event", async (action) => {
+      const store = useVaultStore.getState();
+      switch (action) {
+        case "vault-create":
+          await store.closeVault();
+          break;
+        case "vault-open": {
+          const path = await store.selectFolder();
+          if (path) await store.openVault(path);
+          break;
+        }
+        case "vault-close":
+          await store.closeVault();
+          break;
+        case "vault-delete":
+          if (store.currentVault && window.confirm(
+            `Delete vault "${store.currentVault.name}" and all its contents?\n\nThis cannot be undone.`
+          )) {
+            await store.deleteVault();
+          }
+          break;
+      }
+    });
+    return () => { unlistenPromise.then((fn) => fn()); };
   }, []);
 
   // Show loading during session restore
@@ -105,7 +154,10 @@ export function AppLayout() {
 
           {/* Center Area */}
           <Panel defaultSize={60} minSize={30}>
-            <div className="flex flex-col h-full">
+            <div
+              className="flex flex-col h-full"
+              onFocus={() => useEditorStore.getState().setActiveZone("editor")}
+            >
               <TabBar />
               <PaneContainer />
             </div>
@@ -121,6 +173,7 @@ export function AppLayout() {
                 backgroundColor: "var(--color-terminal-bg)",
                 borderLeft: "1px solid var(--color-border-subtle)",
               }}
+              onFocus={() => useEditorStore.getState().setActiveZone("terminal")}
             >
               <TerminalPanel />
             </div>

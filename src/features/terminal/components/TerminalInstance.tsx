@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SearchAddon } from "@xterm/addon-search";
 import "@xterm/xterm/css/xterm.css";
 import { useTerminalStore } from "@/stores/terminal-store";
+import { useEditorStore } from "@/stores/editor-store";
 import { listenEvent } from "@/shared/utils/ipc";
 
 interface TerminalInstanceProps {
@@ -28,17 +29,19 @@ export function TerminalInstance({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const writeToTerminal = useTerminalStore((s) => s.writeToTerminal);
   const resizeTerminal = useTerminalStore((s) => s.resizeTerminal);
+  const terminalFontSize = useEditorStore((s) => s.terminalFontSize);
 
   // Initialize xterm.js on mount
   useEffect(() => {
     const container = terminalRef.current;
     if (!container) return;
 
+    const initialFontSize = useEditorStore.getState().terminalFontSize;
     const terminal = new Terminal({
       scrollback: 10000,
       fontFamily:
         "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, 'Courier New', monospace",
-      fontSize: 13,
+      fontSize: initialFontSize,
       lineHeight: 1.4,
       cursorBlink: true,
       cursorStyle: "bar",
@@ -123,6 +126,16 @@ export function TerminalInstance({
       fitAddonRef.current = null;
     };
   }, [sessionId, writeToTerminal, resizeTerminal]);
+
+  // Update font size when store value changes
+  useEffect(() => {
+    const term = xtermRef.current;
+    const fit = fitAddonRef.current;
+    if (term && fit) {
+      term.options.fontSize = terminalFontSize;
+      requestAnimationFrame(() => fit.fit());
+    }
+  }, [terminalFontSize]);
 
   // Re-fit when tab becomes active
   useEffect(() => {

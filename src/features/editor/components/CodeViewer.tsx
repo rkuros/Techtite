@@ -57,6 +57,7 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
   const registerEditor = useEditorStore((s) => s.registerEditor);
   const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
   const markDirty = useEditorStore((s) => s.markDirty);
+  const editorFontSize = useEditorStore((s) => s.editorFontSize);
 
   // Extensions — only depend on filePath and language (NOT isEditable)
   // Read-only is toggled imperatively via EditorView.dispatch
@@ -133,7 +134,7 @@ export function CodeViewer({ tab, initialContent, language }: CodeViewerProps) {
       </div>
 
       {/* CodeMirror 6 code viewer */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" style={{ fontSize: `${editorFontSize}px` }}>
         <CodeMirror
           ref={cmRef}
           value={initialContent}

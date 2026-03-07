@@ -6,6 +6,9 @@ pub mod utils;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use tauri::Emitter;
+use tauri::menu::{MenuBuilder, SubmenuBuilder};
+
 use models::vault::Vault;
 use services::watcher_service::WatcherState;
 use services::link_index_service::LinkIndexState;
@@ -83,6 +86,8 @@ pub fn run() {
             commands::vault::update_config,
             commands::vault::create_vault_dir,
             commands::vault::get_home_dir,
+            commands::vault::close_vault,
+            commands::vault::delete_vault,
             // Unit 1: Window State
             commands::window::save_state,
             commands::window::load_state,
@@ -100,6 +105,7 @@ pub fn run() {
             // Unit 3: File Tree
             commands::file_tree::get_tree,
             commands::file_tree::get_metadata,
+            commands::file_tree::list_dir_entries,
             // Unit 4: Knowledge Base
             commands::knowledge::get_outgoing_links,
             commands::knowledge::get_backlinks,
@@ -171,8 +177,49 @@ pub fn run() {
             commands::publish::publish_get_templates,
             commands::publish::publish_set_template,
         ])
-        .setup(|_app| {
-            // Future: Auto-open last vault, initialize services
+        .setup(|app| {
+            // Native menu bar
+            let vault_menu = SubmenuBuilder::new(app, "Vault")
+                .text("vault-create", "Create New Vault...")
+                .text("vault-open", "Open Vault...")
+                .text("vault-close", "Close Vault")
+                .separator()
+                .text("vault-delete", "Delete Current Vault...")
+                .build()?;
+
+            let edit_menu = SubmenuBuilder::new(app, "Edit")
+                .undo()
+                .redo()
+                .separator()
+                .cut()
+                .copy()
+                .paste()
+                .select_all()
+                .build()?;
+
+            let window_menu = SubmenuBuilder::new(app, "Window")
+                .minimize()
+                .close_window()
+                .build()?;
+
+            let menu = MenuBuilder::new(app)
+                .item(&vault_menu)
+                .item(&edit_menu)
+                .item(&window_menu)
+                .build()?;
+
+            app.set_menu(menu)?;
+
+            app.on_menu_event(move |app_handle, event| {
+                match event.id().0.as_str() {
+                    "vault-create" => { let _ = app_handle.emit("menu-event", "vault-create"); }
+                    "vault-open" => { let _ = app_handle.emit("menu-event", "vault-open"); }
+                    "vault-close" => { let _ = app_handle.emit("menu-event", "vault-close"); }
+                    "vault-delete" => { let _ = app_handle.emit("menu-event", "vault-delete"); }
+                    _ => {}
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())

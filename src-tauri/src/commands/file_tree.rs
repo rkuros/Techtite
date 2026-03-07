@@ -203,6 +203,49 @@ fn detect_file_type(path: &Path) -> FileType {
     }
 }
 
+/// List immediate children of a directory (non-recursive).
+/// Used by the column browser to lazily load directory contents.
+///
+/// IPC command: `list_dir_entries`
+/// Input: `{ path: string }` (absolute path)
+/// Output: `FileEntry[]`
+#[tauri::command]
+pub fn list_dir_entries(path: String) -> Result<Vec<FileEntry>, String> {
+    let dir = Path::new(&path);
+    if !dir.is_dir() {
+        return Err(format!("Not a directory: {}", path));
+    }
+
+    let mut entries: Vec<FileEntry> = Vec::new();
+
+    for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {e}"))? {
+        let entry = entry.map_err(|e| format!("Failed to read entry: {e}"))?;
+        let name = entry.file_name().to_string_lossy().to_string();
+
+        // Skip hidden files/dirs
+        if name.starts_with('.') {
+            continue;
+        }
+
+        let entry_path = entry.path();
+        entries.push(FileEntry {
+            path: entry_path.to_string_lossy().to_string(),
+            name,
+            is_dir: entry_path.is_dir(),
+            children: None,
+        });
+    }
+
+    // Sort: directories first, then alphabetically
+    entries.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+    });
+
+    Ok(entries)
+}
+
 /// Get the file tree for the current vault.
 ///
 /// IPC command: `file_tree:get_tree`

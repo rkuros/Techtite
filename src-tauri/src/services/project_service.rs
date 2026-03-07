@@ -158,6 +158,18 @@ pub fn save_session(vault_path: &str, project_path: Option<&str>) -> Result<(), 
     Ok(())
 }
 
+/// Clear the saved session.
+pub fn clear_session() -> Result<(), TechtiteError> {
+    let app_data = dirs_next::data_dir()
+        .ok_or_else(|| TechtiteError::Other("Could not determine app data directory".to_string()))?
+        .join("com.miyanorococo.techtite");
+    let path = app_data.join("session.json");
+    if path.exists() {
+        fs::remove_file(path)?;
+    }
+    Ok(())
+}
+
 /// Load the last session from app data directory.
 pub fn load_session() -> Result<Option<SessionState>, TechtiteError> {
     let app_data = dirs_next::data_dir()

@@ -31,6 +31,15 @@ interface EditorStoreState {
   terminalHeight: number;
   activeSidebarPanel: string;
 
+  // Zoom / font size
+  editorFontSize: number;
+  terminalFontSize: number;
+  activeZone: "editor" | "terminal";
+  setActiveZone: (zone: "editor" | "terminal") => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  resetZoom: () => void;
+
   // Actions (Unit 1)
   openTab: (filePath: string) => void;
   closeTab: (tabId: string) => void;
@@ -109,6 +118,34 @@ export const useEditorStore = create<EditorStoreState>((set, get) => ({
   sidebarWidth: 240,
   terminalHeight: 0,
   activeSidebarPanel: "files",
+  editorFontSize: 14,
+  terminalFontSize: 13,
+  activeZone: "editor",
+  setActiveZone: (zone) => set({ activeZone: zone }),
+  zoomIn: () => {
+    const { activeZone, editorFontSize, terminalFontSize } = get();
+    if (activeZone === "editor") {
+      set({ editorFontSize: Math.min(editorFontSize + 1, 32) });
+    } else {
+      set({ terminalFontSize: Math.min(terminalFontSize + 1, 28) });
+    }
+  },
+  zoomOut: () => {
+    const { activeZone, editorFontSize, terminalFontSize } = get();
+    if (activeZone === "editor") {
+      set({ editorFontSize: Math.max(editorFontSize - 1, 8) });
+    } else {
+      set({ terminalFontSize: Math.max(terminalFontSize - 1, 8) });
+    }
+  },
+  resetZoom: () => {
+    const { activeZone } = get();
+    if (activeZone === "editor") {
+      set({ editorFontSize: 14 });
+    } else {
+      set({ terminalFontSize: 13 });
+    }
+  },
 
   // =========================================================================
   // Unit 1 base slice — actions

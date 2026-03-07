@@ -13,12 +13,17 @@ interface VaultStoreState {
   projects: Project[];
   currentProject: Project | null;
 
+  // Project browsing (column view in main area)
+  browsingProject: Project | null;
+  setBrowsingProject: (project: Project | null) => void;
+
   // Session restore
   isRestoring: boolean;
 
   // Actions
   openVault: (path: string) => Promise<void>;
-  closeVault: () => void;
+  closeVault: () => Promise<void>;
+  deleteVault: () => Promise<void>;
   selectFolder: () => Promise<string | null>;
   updateConfig: (config: VaultConfig) => Promise<void>;
 
@@ -40,6 +45,8 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
   error: null,
   projects: [],
   currentProject: null,
+  browsingProject: null,
+  setBrowsingProject: (project) => set({ browsingProject: project }),
   isRestoring: false,
 
   restoreSession: async () => {
@@ -91,8 +98,22 @@ export const useVaultStore = create<VaultStoreState>((set, get) => ({
     }
   },
 
-  closeVault: () => {
-    set({ currentVault: null, projects: [], currentProject: null });
+  closeVault: async () => {
+    try {
+      await invokeCommand("close_vault");
+    } catch {
+      // If backend fails, still clear frontend state
+    }
+    set({ currentVault: null, projects: [], currentProject: null, error: null });
+  },
+
+  deleteVault: async () => {
+    try {
+      await invokeCommand("delete_vault");
+      set({ currentVault: null, projects: [], currentProject: null, error: null });
+    } catch (err) {
+      set({ error: String(err) });
+    }
   },
 
   selectFolder: async () => {

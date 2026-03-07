@@ -15,7 +15,7 @@ const techtiteThemeOverride = EditorView.theme(
     ".cm-content": {
       padding: "24px 48px", caretColor: "#89b4fa",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-      fontSize: "14px", lineHeight: "1.7",
+      fontSize: "inherit", lineHeight: "1.7",
     },
     ".cm-cursor": { borderLeftColor: "#89b4fa" },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
@@ -64,6 +64,7 @@ export const MarkdownEditor = React.memo(
     const registerEditor = useEditorStore((s) => s.registerEditor);
     const unregisterEditor = useEditorStore((s) => s.unregisterEditor);
     const markDirty = useEditorStore((s) => s.markDirty);
+    const editorFontSize = useEditorStore((s) => s.editorFontSize);
 
 
     // Memoize extensions — only recreate when filePath changes
@@ -153,7 +154,7 @@ export const MarkdownEditor = React.memo(
         </div>
 
         {/* CodeMirror 6 editor */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto" style={{ fontSize: `${editorFontSize}px` }}>
           <CodeMirror
             ref={cmRef}
             value={initialContent}
@@ -174,3 +175,4 @@ export const MarkdownEditor = React.memo(
     prev.tab.viewMode === next.tab.viewMode &&
     prev.initialContent === next.initialContent
 );
+

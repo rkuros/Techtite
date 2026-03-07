@@ -3,12 +3,13 @@ use std::sync::Arc;
 
 use tauri::State;
 
+
 use crate::models::vault::{Vault, VaultConfig};
 use crate::services::embedding_service::EmbeddingServiceState;
 use crate::services::link_index_service::{self, LinkIndexState};
 use crate::services::tag_service::{self, TagIndexState};
 use crate::services::vector_store_service::{self, VectorStoreState};
-use crate::services::{vault_service, watcher_service};
+use crate::services::{project_service, vault_service, watcher_service};
 use crate::AppState;
 
 /// Walk the vault directory and collect all `.md` file paths (relative to vault root).
@@ -169,6 +170,57 @@ pub fn create_vault_dir(path: String) -> Result<(), String> {
         return Err(format!("Directory already exists: {}", path));
     }
     std::fs::create_dir_all(p).map_err(|e| format!("Failed to create directory: {}", e))
+}
+
+#[tauri::command]
+pub fn close_vault(state: State<'_, AppState>) -> Result<(), String> {
+    // Stop file watcher
+    watcher_service::stop_watching(Arc::clone(&state.watcher_state));
+
+    // Clear current vault and active root
+    let mut current = state.current_vault.lock().map_err(|e| e.to_string())?;
+    *current = None;
+    drop(current);
+
+    let mut active = state.active_root.lock().map_err(|e| e.to_string())?;
+    *active = None;
+    drop(active);
+
+    // Clear saved session
+    project_service::clear_session().map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_vault(state: State<'_, AppState>) -> Result<(), String> {
+    // Get vault path before closing
+    let vault_path = {
+        let current = state.current_vault.lock().map_err(|e| e.to_string())?;
+        current
+            .as_ref()
+            .map(|v| v.path.clone())
+            .ok_or_else(|| "No vault open".to_string())?
+    };
+
+    // Stop watcher, clear state, clear session
+    watcher_service::stop_watching(Arc::clone(&state.watcher_state));
+
+    let mut current = state.current_vault.lock().map_err(|e| e.to_string())?;
+    *current = None;
+    drop(current);
+
+    let mut active = state.active_root.lock().map_err(|e| e.to_string())?;
+    *active = None;
+    drop(active);
+
+    project_service::clear_session().map_err(|e| e.to_string())?;
+
+    // Delete the vault directory
+    std::fs::remove_dir_all(&vault_path)
+        .map_err(|e| format!("Failed to delete vault: {}", e))?;
+
+    Ok(())
 }
 
 #[tauri::command]
