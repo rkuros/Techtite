@@ -66,7 +66,6 @@ export function Ribbon() {
         width: 44,
         minWidth: 44,
         backgroundColor: "var(--color-ribbon-bg)",
-        borderRight: "1px solid var(--color-border-subtle)",
       }}
     >
       {/* Projects button */}

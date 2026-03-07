@@ -79,6 +79,7 @@ export function ProjectBrowser({ project }: { project: Project }) {
     }
   }, [columns.length]);
 
+
   const handleEntryClick = useCallback(
     async (colIndex: number, entry: FileEntry) => {
       // Update selection, trim later columns

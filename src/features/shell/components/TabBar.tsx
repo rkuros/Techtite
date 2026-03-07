@@ -40,7 +40,7 @@ export function TabBar() {
   return (
     <div className="flex items-center flex-1 min-w-0 h-full">
       {/* Tabs area */}
-      <div className="flex items-center overflow-x-auto flex-1 min-w-0">
+      <div className="flex items-center overflow-x-auto flex-1 min-w-0 h-full">
         {openTabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           return (
@@ -67,7 +67,7 @@ export function TabBar() {
                   style={{ backgroundColor: "var(--color-warning)" }}
                 />
               )}
-              <span className="text-xs truncate max-w-[120px]">
+              <span className="text-[13px] truncate max-w-[140px]">
                 {getFileName(tab.filePath)}
               </span>
               <button

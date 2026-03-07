@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Panel,
   PanelGroup,
@@ -50,21 +50,39 @@ export function AppLayout() {
   const editorRef = useRef<ImperativePanelHandle>(null);
   const terminalRef = useRef<ImperativePanelHandle>(null);
 
-  // Sync panel refs with store state
-  const togglePanel = useCallback((
-    ref: React.RefObject<ImperativePanelHandle | null>,
-    collapsed: boolean,
-  ) => {
-    if (collapsed) {
-      ref.current?.collapse();
-    } else {
-      ref.current?.expand();
+  // Sync panel refs with store state (defer initial collapse to avoid layout race)
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      // Initial collapse after layout settles
+      requestAnimationFrame(() => {
+        if (sidebarCollapsed) sidebarRef.current?.collapse();
+        if (editorCollapsed) editorRef.current?.collapse();
+        if (terminalCollapsed) terminalRef.current?.collapse();
+      });
+      return;
     }
-  }, []);
+    // Subsequent toggles happen immediately
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { togglePanel(sidebarRef, sidebarCollapsed); }, [sidebarCollapsed, togglePanel]);
-  useEffect(() => { togglePanel(editorRef, editorCollapsed); }, [editorCollapsed, togglePanel]);
-  useEffect(() => { togglePanel(terminalRef, terminalCollapsed); }, [terminalCollapsed, togglePanel]);
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (sidebarCollapsed) sidebarRef.current?.collapse();
+    else sidebarRef.current?.expand();
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (editorCollapsed) editorRef.current?.collapse();
+    else editorRef.current?.expand();
+  }, [editorCollapsed]);
+
+  useEffect(() => {
+    if (!mountedRef.current) return;
+    if (terminalCollapsed) terminalRef.current?.collapse();
+    else terminalRef.current?.expand();
+  }, [terminalCollapsed]);
 
   // Restore last session on mount
   useEffect(() => {
@@ -234,32 +252,34 @@ export function AppLayout() {
     );
   }
 
+  // Height of the traffic light row (tabs sit here)
+  const TITLEBAR_ROW = 36;
+  // Extra spacing below tabs to align with sidebar/ribbon content start
+  const TITLEBAR_SPACER = 0;
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
-      {/* Title bar row — spans full width, overlays macOS traffic lights */}
-      <div
-        className="flex items-center shrink-0"
-        data-tauri-drag-region
-        style={{
-          height: 38,
-          minHeight: 38,
-          backgroundColor: "var(--color-tabbar-bg)",
-          borderBottom: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        {/* Left: traffic light padding (macOS) + ribbon width */}
-        <div
-          data-tauri-drag-region
-          style={{ width: 44 + 80, minWidth: 44 + 80 }}
-        />
-
-        {/* Editor tabs + panel toggles */}
-        <TabBar />
-      </div>
-
       <div className="flex flex-1 overflow-hidden">
-        {/* Ribbon */}
-        <Ribbon />
+        {/* Ribbon — top spacer for macOS traffic lights, border starts below spacer */}
+        <div className="flex flex-col shrink-0">
+          <div
+            data-tauri-drag-region
+            style={{
+              height: TITLEBAR_ROW + TITLEBAR_SPACER,
+              minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+              backgroundColor: "var(--color-tabbar-bg)",
+            }}
+          />
+          <div
+            className="flex-1"
+            style={{
+              backgroundColor: "var(--color-ribbon-bg)",
+              borderRight: "1px solid var(--color-border-subtle)",
+            }}
+          >
+            <Ribbon />
+          </div>
+        </div>
 
         {/* Main content area with resizable panels */}
         <PanelGroup direction="horizontal" className="flex-1">
@@ -274,18 +294,36 @@ export function AppLayout() {
             onCollapse={() => setSidebarCollapsed(true)}
             onExpand={() => setSidebarCollapsed(false)}
           >
-            <div
-              className="h-full overflow-y-auto"
-              style={{
-                backgroundColor: "var(--color-sidebar-bg)",
-                borderRight: "1px solid var(--color-border-subtle)",
-              }}
-            >
-              <SidebarContent panel={activeSidebarPanel} />
+            <div className="flex flex-col h-full">
+              {/* Titlebar spacer — uniform color, no borders */}
+              <div
+                data-tauri-drag-region
+                className="shrink-0"
+                style={{
+                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  backgroundColor: "var(--color-tabbar-bg)",
+                }}
+              />
+              {/* Content area — border only starts here */}
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  backgroundColor: "var(--color-sidebar-bg)",
+                  borderRight: "1px solid var(--color-border-subtle)",
+                }}
+              >
+                <SidebarContent panel={activeSidebarPanel} />
+              </div>
             </div>
           </Panel>
 
-          <PanelResizeHandle className="w-[1px] bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
+          <PanelResizeHandle>
+            <div className="flex flex-col h-full w-[1px]">
+              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER }} />
+              <div className="flex-1 bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
+            </div>
+          </PanelResizeHandle>
 
           {/* Center Area */}
           <Panel
@@ -301,16 +339,34 @@ export function AppLayout() {
               className="flex flex-col h-full"
               onFocus={() => useEditorStore.getState().setActiveZone("editor")}
             >
+              {/* Tab bar at window top — total height matches sidebar spacer */}
+              <div
+                className="flex items-end shrink-0"
+                data-tauri-drag-region
+                style={{
+                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  paddingLeft: sidebarCollapsed ? 36 : 0,
+                  backgroundColor: "var(--color-tabbar-bg)",
+                }}
+              >
+                <TabBar />
+              </div>
               <PaneContainer />
             </div>
           </Panel>
 
-          <PanelResizeHandle className="w-[1px] bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
+          <PanelResizeHandle>
+            <div className="flex flex-col h-full w-[1px]">
+              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER }} />
+              <div className="flex-1 bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
+            </div>
+          </PanelResizeHandle>
 
           {/* Right Terminal */}
           <Panel
             ref={terminalRef}
-            defaultSize={0}
+            defaultSize={20}
             minSize={15}
             collapsible
             collapsedSize={0}
@@ -318,14 +374,29 @@ export function AppLayout() {
             onExpand={() => setTerminalCollapsed(false)}
           >
             <div
-              className="h-full"
-              style={{
-                backgroundColor: "var(--color-terminal-bg)",
-                borderLeft: "1px solid var(--color-border-subtle)",
-              }}
+              className="flex flex-col h-full"
               onFocus={() => useEditorStore.getState().setActiveZone("terminal")}
             >
-              <TerminalPanel />
+              {/* Titlebar spacer — uniform color, no borders */}
+              <div
+                data-tauri-drag-region
+                className="shrink-0"
+                style={{
+                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  backgroundColor: "var(--color-tabbar-bg)",
+                }}
+              />
+              {/* Content — border only starts here */}
+              <div
+                className="flex-1 min-h-0"
+                style={{
+                  backgroundColor: "var(--color-terminal-bg)",
+                  borderLeft: "1px solid var(--color-border-subtle)",
+                }}
+              >
+                <TerminalPanel />
+              </div>
             </div>
           </Panel>
         </PanelGroup>

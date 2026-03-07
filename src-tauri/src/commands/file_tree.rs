@@ -211,11 +211,12 @@ fn detect_file_type(path: &Path) -> FileType {
 /// Output: `FileEntry[]`
 #[tauri::command]
 pub fn list_dir_entries(path: String, state: State<'_, AppState>) -> Result<Vec<FileEntry>, String> {
-    let root = state.active_root.lock().map_err(|e| e.to_string())?;
-    let vault_root = root.as_ref().ok_or("No vault or project open")?;
+    // Use vault root (not active_root which may be a project subdir) for validation
+    let vault_lock = state.current_vault.lock().map_err(|e| e.to_string())?;
+    let vault = vault_lock.as_ref().ok_or("No vault open")?;
 
     // Canonicalize both paths to prevent traversal attacks
-    let vault_canonical = vault_root
+    let vault_canonical = vault.path
         .canonicalize()
         .map_err(|e| format!("Failed to resolve vault root: {e}"))?;
     let dir = Path::new(&path);
