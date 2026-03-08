@@ -143,9 +143,10 @@ export const useTerminalStore = create<TerminalStoreState>((set, get) => ({
 
   createTerminal: async (label?: string) => {
     const id = await invokeCommand<string>("terminal_create", { label });
+    const nextNum = get().terminals.length + 1;
     get().addTerminal({
       id,
-      label: label ?? "Shell",
+      label: label ?? `Shell ${nextNum}`,
       agentId: null,
     });
     return id;

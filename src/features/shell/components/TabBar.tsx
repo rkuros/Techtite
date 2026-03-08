@@ -38,11 +38,11 @@ export function TabBar() {
   const toggleTerminal = useEditorStore((s) => s.toggleTerminal);
 
   return (
-    <div className="flex items-center flex-1 min-w-0 h-full">
-      {/* Tabs area — scaleY(-1) flips scrollbar to top */}
+    <div className="flex items-center flex-1 min-w-0 h-full" data-tauri-drag-region>
+      {/* Tabs area — hidden scrollbar, trackpad scroll works */}
       <div
-        className="flex items-center overflow-x-auto flex-1 min-w-0 h-full"
-        style={{ transform: "scaleY(-1)" }}
+        className="flex items-center overflow-x-auto flex-1 min-w-0 h-full hide-scrollbar"
+        data-tauri-drag-region
       >
         {openTabs.map((tab) => {
           const isActive = tab.id === activeTabId;
@@ -52,7 +52,6 @@ export function TabBar() {
               className="flex items-center gap-1.5 px-3 cursor-pointer select-none shrink-0"
               style={{
                 height: "100%",
-                transform: "scaleY(-1)",
                 borderBottom: isActive
                   ? "2px solid var(--color-accent)"
                   : "2px solid transparent",

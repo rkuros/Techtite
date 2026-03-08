@@ -64,6 +64,14 @@ html, body, #root {
   background: var(--color-bg-active);
 }
 
+/* Hide scrollbar on tab bars (trackpad scroll still works) */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
 /* Selection */
 ::selection {
   background-color: color-mix(in srgb, var(--color-accent) 30%, transparent);

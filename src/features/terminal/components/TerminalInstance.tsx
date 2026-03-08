@@ -146,5 +146,5 @@ export function TerminalInstance({
     }
   }, [isActive]);
 
-  return <div ref={terminalRef} className="h-full w-full" />;
+  return <div ref={terminalRef} className="h-full w-full" style={{ padding: "8px 12px 8px 12px" }} />;
 }

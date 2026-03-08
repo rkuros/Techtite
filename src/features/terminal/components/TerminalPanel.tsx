@@ -1,6 +1,5 @@
 import { useCallback, useEffect } from "react";
 import { useTerminalStore } from "@/stores/terminal-store";
-import { TerminalTab } from "./TerminalTab";
 import { TerminalInstance } from "./TerminalInstance";
 
 /**
@@ -17,9 +16,7 @@ import { TerminalInstance } from "./TerminalInstance";
 export function TerminalPanel() {
   const terminals = useTerminalStore((s) => s.terminals);
   const activeTerminalId = useTerminalStore((s) => s.activeTerminalId);
-  const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal);
   const createTerminal = useTerminalStore((s) => s.createTerminal);
-  const closeTerminal = useTerminalStore((s) => s.closeTerminal);
   const toggleTerminalPanel = useTerminalStore((s) => s.toggleTerminalPanel);
   const initEventListeners = useTerminalStore((s) => s.initEventListeners);
 
@@ -63,73 +60,8 @@ export function TerminalPanel() {
     }
   }, [createTerminal]);
 
-  const handleCloseTab = useCallback(
-    async (id: string) => {
-      try {
-        await closeTerminal(id);
-      } catch (err) {
-        console.error("Failed to close terminal:", err);
-      }
-    },
-    [closeTerminal]
-  );
-
   return (
-    <div className="flex flex-col h-full" style={{ minWidth: 250 }}>
-      {/* Tab bar */}
-      <div
-        className="flex items-center gap-0 overflow-x-auto"
-        style={{
-          height: 32,
-          minHeight: 32,
-          backgroundColor: "var(--color-bg-surface)",
-          borderBottom: "1px solid var(--color-border-subtle)",
-        }}
-      >
-        <div
-          className="flex items-center px-2 text-xs shrink-0"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          Terminal
-        </div>
-        <div className="flex items-center flex-1 overflow-x-auto">
-          {terminals.map((session) => (
-            <TerminalTab
-              key={session.id}
-              id={session.id}
-              label={session.label}
-              isActive={session.id === activeTerminalId}
-              onSelect={() => setActiveTerminal(session.id)}
-              onClose={() => handleCloseTab(session.id)}
-            />
-          ))}
-        </div>
-
-        {/* Add new terminal button */}
-        <button
-          onClick={handleCreateTerminal}
-          className="flex items-center justify-center shrink-0 transition-colors"
-          style={{
-            width: 28,
-            height: 28,
-            marginRight: 4,
-            borderRadius: 4,
-            color: "var(--color-text-muted)",
-            fontSize: 16,
-          }}
-          title="New Terminal"
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor =
-              "var(--color-bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = "transparent";
-          }}
-        >
-          +
-        </button>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Terminal body */}
       <div
         className="flex-1 overflow-hidden"

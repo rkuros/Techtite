@@ -25,12 +25,48 @@ import { FileExplorer, ProjectsPanel } from "@/features/file-management";
 import { SearchPanel, BacklinksPage, TagsPage, GraphView } from "@/features/knowledge";
 import { GitPanel, SyncStatus } from "@/features/git";
 import { TerminalPanel } from "@/features/terminal/components/TerminalPanel";
+import { useTerminalStore } from "@/stores/terminal-store";
 import { AgentsDashboard, AgentCountBadge } from "@/features/terminal";
 import { LogsPanel } from "@/features/reliability";
 import { PublishPanel } from "@/features/publishing";
 import { CostStatusBadge } from "@/features/guardrails";
 import { AIChat, RAGStatusIndicator } from "@/features/semantic-search";
 import { SettingsModal } from "./SettingsModal";
+
+// Title bar layout constants
+const TITLEBAR_ROW = 36;
+const TITLEBAR_SPACER = 0;
+// Thin drag strip at the very top of the window for reliable window dragging.
+// data-tauri-drag-region on parent elements doesn't work when child elements
+// (tabs, buttons, scaleY-flipped scroll containers) cover the entire area,
+// because the mousedown hits the child instead of the attributed parent.
+const DRAG_STRIP_HEIGHT = 4;
+
+/**
+ * Start window dragging programmatically when mousedown lands on a
+ * drag-region element. This supplements data-tauri-drag-region for areas
+ * where child elements (tabs, scaleY-flipped containers) absorb the hit.
+ *
+ * We walk up from the event target to the currentTarget (the element with
+ * the handler). If we hit an interactive element (button, a, input, etc.)
+ * we bail out so clicks still work. Otherwise we initiate the drag.
+ */
+function handleDragMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+  // Only primary button
+  if (e.button !== 0) return;
+  // Walk from the actual target up to the handler element
+  let el = e.target as HTMLElement | null;
+  const boundary = e.currentTarget;
+  while (el && el !== boundary) {
+    const tag = el.tagName.toLowerCase();
+    if (tag === "button" || tag === "a" || tag === "input" || tag === "select" || tag === "textarea") {
+      return; // interactive element — don't drag
+    }
+    el = el.parentElement;
+  }
+  e.preventDefault();
+  getCurrentWindow().startDragging();
+}
 
 export function AppLayout() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -230,11 +266,17 @@ export function AppLayout() {
   if (isRestoring) {
     return (
       <div
-        className="h-screen w-screen flex items-center justify-center"
+        className="h-screen w-screen flex flex-col"
         style={{ backgroundColor: "var(--color-bg-primary)" }}
       >
-        <div className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-          Loading...
+        <div
+          data-tauri-drag-region
+          style={{ height: TITLEBAR_ROW, minHeight: TITLEBAR_ROW, flexShrink: 0 }}
+        />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+            Loading...
+          </div>
         </div>
       </div>
     );
@@ -244,29 +286,45 @@ export function AppLayout() {
   if (!currentVault) {
     return (
       <div
-        className="h-screen w-screen"
+        className="h-screen w-screen flex flex-col"
         style={{ backgroundColor: "var(--color-bg-primary)" }}
       >
-        <WelcomeScreen />
+        <div
+          data-tauri-drag-region
+          style={{ height: TITLEBAR_ROW, minHeight: TITLEBAR_ROW, flexShrink: 0 }}
+        />
+        <div className="flex-1 overflow-auto">
+          <WelcomeScreen />
+        </div>
       </div>
     );
   }
 
-  // Height of the traffic light row (tabs sit here)
-  const TITLEBAR_ROW = 36;
-  // Extra spacing below tabs to align with sidebar/ribbon content start
-  const TITLEBAR_SPACER = 0;
+  // (TITLEBAR_ROW and TITLEBAR_SPACER are module-level constants above)
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
+      {/* Dedicated drag strip — always visible at the very top of the window.
+          This has no child elements so data-tauri-drag-region always receives
+          the mousedown directly, guaranteeing window dragging works. */}
+      <div
+        data-tauri-drag-region
+        style={{
+          height: DRAG_STRIP_HEIGHT,
+          minHeight: DRAG_STRIP_HEIGHT,
+          backgroundColor: "var(--color-tabbar-bg)",
+          flexShrink: 0,
+        }}
+      />
+
       <div className="flex flex-1 overflow-hidden">
         {/* Ribbon — top spacer for macOS traffic lights, border starts below spacer */}
         <div className="flex flex-col shrink-0">
           <div
             data-tauri-drag-region
             style={{
-              height: TITLEBAR_ROW + TITLEBAR_SPACER,
-              minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+              height: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT,
+              minHeight: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT,
               backgroundColor: "var(--color-tabbar-bg)",
             }}
           />
@@ -300,8 +358,8 @@ export function AppLayout() {
                 data-tauri-drag-region
                 className="shrink-0"
                 style={{
-                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
-                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  height: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT,
+                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT,
                   backgroundColor: "var(--color-tabbar-bg)",
                 }}
               />
@@ -320,7 +378,7 @@ export function AppLayout() {
 
           <PanelResizeHandle>
             <div className="flex flex-col h-full w-[1px]">
-              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER }} />
+              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT }} />
               <div className="flex-1 bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
             </div>
           </PanelResizeHandle>
@@ -339,13 +397,17 @@ export function AppLayout() {
               className="flex flex-col h-full"
               onFocus={() => useEditorStore.getState().setActiveZone("editor")}
             >
-              {/* Tab bar at window top — total height matches sidebar spacer */}
+              {/* Tab bar in title bar area — empty space is draggable.
+                  Uses onMouseDown+startDragging() because child elements
+                  (tabs with scaleY transform) prevent data-tauri-drag-region
+                  from receiving the mousedown directly. */}
               <div
-                className="flex items-end shrink-0"
                 data-tauri-drag-region
+                onMouseDown={handleDragMouseDown}
+                className="flex items-center shrink-0"
                 style={{
-                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
-                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
+                  height: TITLEBAR_ROW - DRAG_STRIP_HEIGHT,
+                  minHeight: TITLEBAR_ROW - DRAG_STRIP_HEIGHT,
                   paddingLeft: sidebarCollapsed ? 36 : 0,
                   backgroundColor: "var(--color-tabbar-bg)",
                 }}
@@ -358,7 +420,7 @@ export function AppLayout() {
 
           <PanelResizeHandle>
             <div className="flex flex-col h-full w-[1px]">
-              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER }} />
+              <div style={{ height: TITLEBAR_ROW + TITLEBAR_SPACER - DRAG_STRIP_HEIGHT }} />
               <div className="flex-1 bg-[var(--color-border-subtle)] hover:bg-[var(--color-accent)] transition-colors" />
             </div>
           </PanelResizeHandle>
@@ -377,16 +439,8 @@ export function AppLayout() {
               className="flex flex-col h-full"
               onFocus={() => useEditorStore.getState().setActiveZone("terminal")}
             >
-              {/* Titlebar spacer — uniform color, no borders */}
-              <div
-                data-tauri-drag-region
-                className="shrink-0"
-                style={{
-                  height: TITLEBAR_ROW + TITLEBAR_SPACER,
-                  minHeight: TITLEBAR_ROW + TITLEBAR_SPACER,
-                  backgroundColor: "var(--color-tabbar-bg)",
-                }}
-              />
+              {/* Terminal tab bar in title bar area */}
+              <TerminalTabBar />
               {/* Content — border only starts here */}
               <div
                 className="flex-1 min-h-0"
@@ -449,6 +503,82 @@ function SidebarContent({ panel }: { panel: string }) {
     default:
       return <SidebarPlaceholder panel={panel} />;
   }
+}
+
+/** Terminal tab bar — matches editor TabBar style, sits in title bar area */
+function TerminalTabBar() {
+  const terminals = useTerminalStore((s) => s.terminals);
+  const activeTerminalId = useTerminalStore((s) => s.activeTerminalId);
+  const setActiveTerminal = useTerminalStore((s) => s.setActiveTerminal);
+  const createTerminal = useTerminalStore((s) => s.createTerminal);
+  const closeTerminal = useTerminalStore((s) => s.closeTerminal);
+
+  return (
+    <div
+      data-tauri-drag-region
+      onMouseDown={handleDragMouseDown}
+      className="flex items-center shrink-0"
+      style={{
+        height: TITLEBAR_ROW - DRAG_STRIP_HEIGHT,
+        minHeight: TITLEBAR_ROW - DRAG_STRIP_HEIGHT,
+        backgroundColor: "#1e1e1e",
+      }}
+    >
+      <div className="flex items-center flex-1 min-w-0 h-full">
+        <div className="flex items-center overflow-x-auto flex-1 min-w-0 h-full hide-scrollbar">
+          {terminals.map((session) => {
+            const isActive = session.id === activeTerminalId;
+            return (
+              <div
+                key={session.id}
+                className="flex items-center gap-1.5 px-3 cursor-pointer select-none shrink-0"
+                style={{
+                  height: "100%",
+                  borderBottom: isActive
+                    ? "2px solid var(--color-accent)"
+                    : "2px solid transparent",
+                  backgroundColor: isActive
+                    ? "#2a2a2a"
+                    : "transparent",
+                  color: isActive
+                    ? "var(--color-text-primary)"
+                    : "var(--color-text-secondary)",
+                }}
+                onClick={() => setActiveTerminal(session.id)}
+              >
+                <span className="text-[13px] truncate max-w-[120px]">
+                  {session.label}
+                </span>
+                <button
+                  className="ml-1 opacity-60 hover:opacity-100 text-xs"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTerminal(session.id);
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        {/* Add terminal button */}
+        <button
+          onClick={() => createTerminal()}
+          className="flex items-center justify-center w-7 h-7 rounded text-[15px] shrink-0 transition-colors"
+          style={{
+            color: "var(--color-text-muted)",
+            marginRight: 4,
+          }}
+          title="New Terminal"
+          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "var(--color-bg-hover)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function SidebarPlaceholder({ panel }: { panel: string }) {
